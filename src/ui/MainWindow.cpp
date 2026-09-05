@@ -31,8 +31,6 @@
 #include <QProcess>
 #include <QStandardPaths>
 #include <QMessageBox>
-#include <AeroQt/navbuttons.h>
-#include <AeroQt/insetwindow.h>
 #include "Categories.h"
 #include "Branding.h"
 #include "PageId.h"
@@ -92,10 +90,12 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(central);
     statusBar()->hide();
 
-    // Aero glass on crumb bar: must be after setCentralWidget
-    setAttribute(Qt::WA_TranslucentBackground, true);
-    setAttribute(Qt::WA_NoSystemBackground, true);
-    Aero::makeInsetWindow(this, central, m_crumbBar, nullptr);
+    // Create a visual separation between crumb bar and content
+    // The crumb bar has a subtle bottom border to simulate the Aero glass effect
+    m_crumbBar->setStyleSheet(
+        "QWidget { background: transparent; border-bottom: 1px solid #C0CEDA; }"
+    );
+    setAttribute(Qt::WA_TranslucentBackground, false);
 
     // Intercept mouse side-button events from any child widget.
     qApp->installEventFilter(this);
@@ -109,8 +109,8 @@ void MainWindow::buildCrumbBar()
     layout->setContentsMargins(4, 3, 6, 3);
     layout->setSpacing(2);
 
-    // Aero-style back/forward nav buttons
-    auto *navBtns = new Aero::NavButtons(m_crumbBar);
+    // Win7-style back/forward nav buttons
+    auto *navBtns = new NavButtons(m_crumbBar);
     m_backBtn = navBtns->back();
     m_forwardBtn = navBtns->forward();
     m_backBtn->setEnabled(false);
@@ -120,14 +120,12 @@ void MainWindow::buildCrumbBar()
     layout->addWidget(navBtns);
     layout->addSpacing(4);
 
-    // Address path box: icon + crumb trail. Reuse AeroQt's glass-entry texture so
-    // this box matches the search field. Scoped with #addressBox so child labels
-    // are unaffected.
+    // Address path box: icon + crumb trail. We use a simple Win7-style border.
     auto *pathBox = new QWidget;
     pathBox->setObjectName("addressBox");
     pathBox->setStyleSheet(
-        "#addressBox { border-image: url(:/AeroQt/transpbg/entry/normal.png) 4 4 4 4 repeat; border-width: 4px; }"
-        "#addressBox:hover { border-image: url(:/AeroQt/transpbg/entry/hover.png) 4 4 4 4 repeat; }"
+        "#addressBox { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; }"
+        "#addressBox:hover { border: 1px solid #7EB4EA; }"
     );
     pathBox->setFixedHeight(24);
     m_pathLayout = new QHBoxLayout(pathBox);
@@ -137,17 +135,17 @@ void MainWindow::buildCrumbBar()
     layout->addWidget(pathBox, 1);
     layout->addSpacing(6);
 
-    // Search box. The crumb bar already carries _Aero_transpbg=true (set by
-    // makeInsetWindow), so AeroQt's stylesheet gives plain QLineEdits a
-    // translucent glass background that brightens on hover. We must NOT set our
-    // own border/background or it overrides that border-image. On focus we swap
-    // to a solid white field (AeroQt has no focus-state glass image).
+    // Search box - Win7 style with blue border on focus
     m_searchBox = new QLineEdit;
     m_searchBox->setPlaceholderText("Search Control Panel");
     m_searchBox->setFixedWidth(190);
     m_searchBox->setFixedHeight(24);
     m_searchBox->setClearButtonEnabled(false);
     m_searchBox->addAction(themeIcon({"system-search"}), QLineEdit::TrailingPosition);
+    // Set initial style
+    m_searchBox->setStyleSheet(
+        "QLineEdit { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
+    );
 
     // Italic only while the placeholder shows; upright once the user types.
     QObject::connect(m_searchBox, &QLineEdit::textChanged, m_searchBox,
@@ -163,14 +161,15 @@ void MainWindow::buildCrumbBar()
     QObject::connect(qApp, &QApplication::focusChanged, m_searchBox,
         [this](QWidget *, QWidget *now) {
             if (now == m_searchBox) {
-                // Solid field while typing
+                // Blue border while typing
                 m_searchBox->setStyleSheet(
-                    "QLineEdit { border: 1px solid #7EB4EA; border-radius: 2px;"
-                    " background: #FFFFFF; color: #000000; }"
+                    "QLineEdit { border: 1px solid #7EB4EA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
                 );
             } else {
-                // Fall back to AeroQt's translucent glass entry
-                m_searchBox->setStyleSheet(QString());
+                // Return to normal border
+                m_searchBox->setStyleSheet(
+                    "QLineEdit { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
+                );
             }
         });
 
@@ -976,7 +975,7 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
         else if (text == "Get more gadgets online")
             m_commandLinks.insert(l, kGetWidgetsCmd);
         else if (text == "Device Manager")
-            m_commandLinks.insert(l, kDeviceManagerCmd);
+            m_commandLinks.insert(l, deviceManager());
 
         // Remaining task links: deep-links into the new detail pages, and
         // launchers that open the matching KDE settings module. Consulted only
@@ -1004,28 +1003,28 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Optimize visual display",                     kEaseOfAccessPath },
         };
         static const QHash<QString, QStringList> taskCmd = {
-            { "Mouse",                                       kcm("kcm_mouse") },
-            { "Change desktop background",                   kcm("kcm_wallpaper") },
-            { "Change window glass colors",                  kcm("kcm_colors") },
-            { "Change screen saver",                         kcm("kcm_screenlocker") },
-            { "Adjust screen resolution",                    kcm("kcm_kscreen") },
-            { "Make text and other items larger or smaller", kcm("kcm_kscreen") },
-            { "Connect to an external display",              kcm("kcm_kscreen") },
-            { "Change Font Settings",                        kcm("kcm_fonts") },
-            { "Adjust ClearType text",                       kcm("kcm_fonts") },
-            { "Set your default programs",                   kcm("kcm_componentchooser") },
+            { "Mouse",                                       mouseSettings() },
+            { "Change desktop background",                   desktopBackground() },
+            { "Change window glass colors",                  windowColor() },
+            { "Change screen saver",                         screenSaver() },
+            { "Adjust screen resolution",                    displaySettings() },
+            { "Make text and other items larger or smaller", displaySettings() },
+            { "Connect to an external display",              displaySettings() },
+            { "Change Font Settings",                        fontSettings() },
+            { "Adjust ClearType text",                       fontSettings() },
+            { "Set your default programs",                   networkSettings() },
             { "Make a file type always open in a specific program",
-              kcm("kcm_filetypes") },
-            { "Change keyboards or other input methods",     kcm("kcm_keyboard") },
-            { "Change display language",                     kcm("kcm_regionandlang") },
-            { "Install or uninstall display languages",      kcm("kcm_regionandlang") },
-            { "Change the date, time, or number format",     kcm("kcm_regionandlang") },
-            { "Change location",                             kcm("kcm_regionandlang") },
-            { "Manage Linux Credentials",                    kcm("kcm_kwallet5") },
-            { "Change how your mouse works",                 kcm("kcm_mouse") },
-            { "Change how your keyboard works",              kcm("kcm_access") },
-            { "Start speech recognition",                    kcm("kcm_access") },
-            { "Set up a microphone",                         kcm("kcm_pulseaudio") },
+              networkSettings() },
+            { "Change keyboards or other input methods",     keyboardSettings() },
+            { "Change display language",                     regionAndLanguage() },
+            { "Install or uninstall display languages",      regionAndLanguage() },
+            { "Change the date, time, or number format",     regionAndLanguage() },
+            { "Change location",                             regionAndLanguage() },
+            { "Manage Linux Credentials",                    credentialManager() },
+            { "Change how your mouse works",                 mouseSettings() },
+            { "Change how your keyboard works",              accessibility() },
+            { "Start speech recognition",                    accessibility() },
+            { "Set up a microphone",                         sounds() },
         };
         if (!m_subpageLinks.contains(l) && !m_commandLinks.contains(l)) {
             const auto appIt = taskApplet.constFind(text);

@@ -81,8 +81,8 @@ UserAccountsPage::Account UserAccountsPage::gatherAccount()
 QList<SidebarLink> UserAccountsPage::sidebarLinks()
 {
     return {
-        Nav::command("Manage another account", kcm("kcm_users")),
-        Nav::command("Change User Account Control settings", kcm("kcm_users")),
+        Nav::command("Manage another account", userAccounts()),
+        Nav::command("Change User Account Control settings", userAccounts()),
     };
 }
 
@@ -90,7 +90,7 @@ QList<SidebarLink> UserAccountsPage::sidebarSeeAlso()
 {
     return {
         Nav::plain("Parental Controls"),
-        Nav::command("Credential Manager", kcm("kcm_kwallet5")),
+        Nav::command("Credential Manager", credentialManager()),
     };
 }
 
@@ -149,12 +149,11 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     tasks->setContentsMargins(0, 0, 0, 0);
     tasks->setSpacing(12);
 
-    // All of these edits are handled by KDE's user manager, which prompts for
-    // authorization itself.
+    // All of these edits are handled by system user manager
     auto addTask = [&](const QString &text) {
         auto *link = new LinkLabel(text);
         QObject::connect(link, &LinkLabel::clicked, this, [this]() {
-            launchDetached(this, { "kcmshell6", "kcm_users" });
+            launchDetached(this, userAccounts());
         });
         tasks->addWidget(link, 0, Qt::AlignLeft);
     };

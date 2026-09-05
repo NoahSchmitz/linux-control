@@ -243,7 +243,7 @@ bool SystemPage::eventFilter(QObject *watched, QEvent *event)
 QList<SidebarLink> SystemPage::sidebarLinks()
 {
     return {
-        Nav::command("Device Manager", kDeviceManagerCmd),
+        Nav::command("Device Manager", deviceManagerCmd),
         Nav::plain("Remote settings"),
         Nav::plain("System protection"),
         Nav::plain("Advanced system settings"),

@@ -485,3 +485,122 @@ inline void runAsync(QObject *owner, Job job, Done done)
 }
 
 } // namespace Win7
+
+// ---- NavButtons for crumb bar navigation ----------------------------------
+// This class is defined OUTSIDE the Win7 namespace because it has Q_OBJECT
+// and needs to be moc'd.
+
+#include <QPushButton>
+#include <QHBoxLayout>
+
+class NavButtons : public QWidget {
+    Q_OBJECT
+public:
+    explicit NavButtons(QWidget *parent = nullptr);
+
+    QPushButton *back() { return m_backBtn; }
+    QPushButton *forward() { return m_forwardBtn; }
+
+private:
+    QPushButton *m_backBtn;
+    QPushButton *m_forwardBtn;
+};
+
+inline NavButtons::NavButtons(QWidget *parent)
+    : QWidget(parent)
+{
+    m_backBtn = new QPushButton(this);
+    m_backBtn->setCursor(Qt::PointingHandCursor);
+    m_backBtn->setFixedSize(30, 30);
+    m_backBtn->setStyleSheet(
+        "QPushButton {"
+        "  border: 1px solid #C0CEDA;"
+        "  border-radius: 15px;"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
+        "}"
+        "QPushButton:hover {"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
+        "}"
+        "QPushButton:pressed {"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
+        "}"
+    );
+
+    m_forwardBtn = new QPushButton(this);
+    m_forwardBtn->setCursor(Qt::PointingHandCursor);
+    m_forwardBtn->setFixedSize(30, 30);
+    m_forwardBtn->setStyleSheet(
+        "QPushButton {"
+        "  border: 1px solid #C0CEDA;"
+        "  border-radius: 15px;"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
+        "}"
+        "QPushButton:hover {"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
+        "}"
+        "QPushButton:pressed {"
+        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+        "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
+        "}"
+    );
+
+    QHBoxLayout *layout = new QHBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(6);
+    layout->addWidget(m_backBtn);
+    layout->addWidget(m_forwardBtn);
+}
+
+// NavButton (single arrow) class
+class NavButton : public QToolButton {
+    Q_OBJECT
+public:
+    enum Direction { Back, Forward };
+
+    explicit NavButton(Direction dir, QWidget *parent = nullptr)
+        : QToolButton(parent)
+        , m_direction(dir)
+    {
+        setCursor(Qt::PointingHandCursor);
+        setFixedSize(30, 30);
+        setCheckable(false);
+        setAutoRaise(false);
+        setStyleSheet(
+            "QToolButton {"
+            "  border: 1px solid #C0CEDA;"
+            "  border-radius: 15px;"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+            "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
+            "}"
+            "QToolButton:hover {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+            "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
+            "}"
+            "QToolButton:pressed {"
+            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
+            "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
+            "}"
+        );
+    }
+
+protected:
+    void paintEvent(QPaintEvent *event) override
+    {
+        QToolButton::paintEvent(event);
+        QPainter p(this);
+        Qt::ArrowType arrowType = (m_direction == Back) ? Qt::LeftArrow : Qt::RightArrow;
+        const QPixmap arrow = Win7::arrowPixmap(arrowType, QColor(0x1F, 0x4E, 0x99));
+        const QSizeF s = arrow.deviceIndependentSize();
+        p.drawPixmap(QPointF((width() - s.width()) / 2.0,
+                             (height() - s.height()) / 2.0), arrow);
+    }
+
+private:
+    Direction m_direction;
+};
+

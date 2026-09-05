@@ -162,16 +162,16 @@ QPixmap PersonalizationPage::swatchPixmap(const Scheme &s) const
 QList<SidebarLink> PersonalizationPage::sidebarLinks()
 {
     return {
-        Nav::command("Change desktop icons", kcm("kcm_icons")),
-        Nav::command("Change mouse pointers", kcm("kcm_cursortheme")),
-        Nav::command("Change your account picture", kcm("kcm_users")),
+        Nav::command("Change desktop icons", desktopBackground()),
+        Nav::command("Change mouse pointers", mouseSettings()),
+        Nav::command("Change your account picture", userAccounts()),
     };
 }
 
 QList<SidebarLink> PersonalizationPage::sidebarSeeAlso()
 {
     return {
-        Nav::command("Display", kcm("kcm_kscreen")),
+        Nav::command("Display", displaySettings()),
         Nav::plain("Taskbar and Start Menu"),
         Nav::to("Ease of Access Center", PageId::EaseOfAccess),
     };
@@ -283,13 +283,13 @@ PersonalizationPage::PersonalizationPage(QScrollArea *sidebar, QWidget *parent)
     };
 
     addAction("preferences-desktop-wallpaper", "Desktop\nBackground",
-              { "kcmshell6", "kcm_wallpaper" });
+              desktopBackground());
     addAction("preferences-desktop-color", "Window\nColor",
-              { "kcmshell6", "kcm_colors" });
+              windowColor());
     addAction("preferences-desktop-sound", "Sounds",
-              { "kcmshell6", "kcm_soundtheme" });
+              sounds());
     addAction("preferences-desktop-screensaver", "Screen\nSaver",
-              { "kcmshell6", "kcm_screenlocker" });
+              screenSaver());
     actionsRow->addStretch(1);
 
     contentV->addLayout(actionsRow);

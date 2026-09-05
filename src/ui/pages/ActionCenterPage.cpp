@@ -49,7 +49,7 @@ QList<SidebarLink> ActionCenterPage::sidebarLinks()
 {
     return {
         Nav::plain("Change Action Center settings"),
-        Nav::command("Change User Account Control settings", kcm("kcm_users")),
+        Nav::command("Change User Account Control settings", userAccounts()),
         Nav::plain("View archived messages"),
         Nav::to("View performance information", PageId::Performance),
     };

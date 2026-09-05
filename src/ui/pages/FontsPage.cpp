@@ -179,9 +179,9 @@ QList<FontsPage::Family> FontsPage::gatherFamilies()
 QList<SidebarLink> FontsPage::sidebarLinks()
 {
     return {
-        Nav::command("Font settings", kcm("kcm_fonts")),
+        Nav::command("Font settings", fontSettings()),
         Nav::plain("Get more font information online"),
-        Nav::command("Adjust ClearType text", kcm("kcm_fonts")),
+        Nav::command("Adjust ClearType text", fontSettings()),
         Nav::plain("Find a character"),
         Nav::plain("Change font size"),
     };

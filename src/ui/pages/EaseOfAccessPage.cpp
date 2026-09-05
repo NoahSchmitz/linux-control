@@ -12,12 +12,12 @@
 #include <QFrame>
 #include <QFont>
 
-// The KDE modules the tools and settings hand off to.
-static const QStringList kAccess      = { "kcmshell6", "kcm_access" };
-static const QStringList kMagnifier   = { "kcmshell6", "kcm_kwin_effects" };
-static const QStringList kHighContrast = { "kcmshell6", "kcm_colors" };
-static const QStringList kMouse       = { "kcmshell6", "kcm_mouse" };
-static const QStringList kCursorTheme = { "kcmshell6", "kcm_cursortheme" };
+// The tools and settings hand off to Linux equivalents.
+static const QStringList kAccess      = { "onboard" };  // On-screen keyboard
+static const QStringList kMagnifier   = { "magnifier" };  // Screen magnifier
+static const QStringList kHighContrast = { "gnome-control-center", "accessibility" };
+static const QStringList kMouse       = { "gnome-mouse-properties" };
+static const QStringList kCursorTheme = { "gnome-tweaks", "--page=mouse" };
 
 // Sidebar
 QList<SidebarLink> EaseOfAccessPage::sidebarLinks()
@@ -29,7 +29,7 @@ QList<SidebarLink> EaseOfAccessPage::sidebarSeeAlso()
 {
     return {
         Nav::to("Personalization", PageId::Personalization),
-        Nav::command("Display", kcm("kcm_kscreen")),
+        Nav::command("Display", displaySettings()),
     };
 }
 

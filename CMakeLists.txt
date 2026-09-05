@@ -9,10 +9,8 @@ set(CMAKE_AUTORCC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Multimedia Concurrent DBus OpenGL)
 find_package(KF6WidgetsAddons REQUIRED)
-find_package(KF6WindowSystem REQUIRED)
 find_package(ZLIB REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(AeroQt REQUIRED)
 find_package(Cups REQUIRED)
 
 add_executable(controlpanel
@@ -21,6 +19,7 @@ add_executable(controlpanel
     src/ui/MainWindow.cpp
     src/ui/PageRegistry.cpp
     src/ui/CategoryWidget.cpp
+    src/ui/Win7Ui.h
     src/ui/pages/LinuxUpdatePage.cpp
     src/ui/pages/SystemPage.cpp
     src/ui/pages/InstalledUpdatesPage.cpp
@@ -71,10 +70,8 @@ target_link_libraries(controlpanel PRIVATE
     Qt6::DBus
     Qt6::OpenGL
     KF6::WidgetsAddons
-    KF6::WindowSystem
     ZLIB::ZLIB
     OpenSSL::Crypto
-    AeroQt
     Cups::Cups
 )
 
