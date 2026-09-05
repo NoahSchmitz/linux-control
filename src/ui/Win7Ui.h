@@ -482,6 +482,7 @@ inline void runAsync(QObject *owner, Job job, Done done)
 
 #include <QPushButton>
 #include <QHBoxLayout>
+#include <QPainter>
 
 class NavButtons : public QWidget {
     Q_OBJECT
@@ -502,12 +503,54 @@ inline NavButtons::NavButtons(QWidget *parent)
     m_backBtn = new QPushButton(this);
     m_backBtn->setCursor(Qt::PointingHandCursor);
     m_backBtn->setFixedSize(30, 30);
-
+    m_backBtn->setIcon(Win7::arrowPixmap(Qt::LeftArrow, QColor(0x1F, 0x4E, 0x99), 12));
+    m_backBtn->setIconSize(QSize(16, 16));
+    m_backBtn->setStyleSheet(
+        "QPushButton {"
+        "  background: #F0F0F0;"
+        "  border: 1px solid #C0C0C0;"
+        "  border-radius: 2px;"
+        "  padding: 2px;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #E0E0E0;"
+        "  border: 1px solid #999999;"
+        "}"
+        "QPushButton:pressed {"
+        "  background: #D0D0D0;"
+        "  border: 1px solid #777777;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: #A0A0A0;"
+        "  border-color: #D0D0D0;"
+        "}"
+    );
 
     m_forwardBtn = new QPushButton(this);
     m_forwardBtn->setCursor(Qt::PointingHandCursor);
     m_forwardBtn->setFixedSize(30, 30);
-
+    m_forwardBtn->setIcon(Win7::arrowPixmap(Qt::RightArrow, QColor(0x1F, 0x4E, 0x99), 12));
+    m_forwardBtn->setIconSize(QSize(16, 16));
+    m_forwardBtn->setStyleSheet(
+        "QPushButton {"
+        "  background: #F0F0F0;"
+        "  border: 1px solid #C0C0C0;"
+        "  border-radius: 2px;"
+        "  padding: 2px;"
+        "}"
+        "QPushButton:hover {"
+        "  background: #E0E0E0;"
+        "  border: 1px solid #999999;"
+        "}"
+        "QPushButton:pressed {"
+        "  background: #D0D0D0;"
+        "  border: 1px solid #777777;"
+        "}"
+        "QPushButton:disabled {"
+        "  color: #A0A0A0;"
+        "  border-color: #D0D0D0;"
+        "}"
+    );
 
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

@@ -70,7 +70,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Hide menu bar (like real Windows 7 Control Panel)
     menuBar()->hide();
 
-    // Crumb bar: Aero glass top inset
+    // Crumb bar: Windows 9x/2000 classic look
     buildCrumbBar();
 
     // Central container
@@ -78,6 +78,9 @@ MainWindow::MainWindow(QWidget *parent)
     auto *mainLayout = new QVBoxLayout(central);
     mainLayout->setContentsMargins(0, 0, 0, 0);
     mainLayout->setSpacing(0);
+
+    // Add crumb bar to the layout
+    mainLayout->addWidget(m_crumbBar, 0);
 
     m_scroll = new QScrollArea;
     m_scroll->setWidgetResizable(true);
@@ -90,10 +93,15 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(central);
     statusBar()->hide();
 
-    // Create a visual separation between crumb bar and content
-    // The crumb bar has a subtle bottom border to simulate the Aero glass effect
+    // Finalize crumb bar styling (must be set after it's added to layout)
     m_crumbBar->setStyleSheet(
-        "QWidget { background: transparent; border-bottom: 1px solid #C0CEDA; }"
+        "QWidget { "
+        "  background: #E0E0E0;"
+        "  border-bottom: 2px solid #808080;"
+        "  border-top: 1px solid #FFFFFF;"
+        "  border-left: 1px solid #FFFFFF;"
+        "  border-right: 1px solid #FFFFFF;"
+        "}"
     );
     setAttribute(Qt::WA_TranslucentBackground, false);
 
@@ -109,7 +117,7 @@ void MainWindow::buildCrumbBar()
     layout->setContentsMargins(4, 3, 6, 3);
     layout->setSpacing(2);
 
-    // Win7-style back/forward nav buttons
+    // Windows 9x/2000-style back/forward nav buttons (now visible with proper styling)
     auto *navBtns = new NavButtons(m_crumbBar);
     m_backBtn = navBtns->back();
     m_forwardBtn = navBtns->forward();
@@ -120,12 +128,15 @@ void MainWindow::buildCrumbBar()
     layout->addWidget(navBtns);
     layout->addSpacing(4);
 
-    // Address path box: icon + crumb trail. We use a simple Win7-style border.
+    // Address path box: Windows 9x classic style - inset border with white background
     auto *pathBox = new QWidget;
     pathBox->setObjectName("addressBox");
     pathBox->setStyleSheet(
-        "#addressBox { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; }"
-        "#addressBox:hover { border: 1px solid #7EB4EA; }"
+        "#addressBox { "
+        "  border: 2px solid #0A246A;"
+        "  border-radius: 0px;"
+        "  background: #FFFFFF;"
+        "}"
     );
     pathBox->setFixedHeight(24);
     m_pathLayout = new QHBoxLayout(pathBox);
@@ -135,16 +146,21 @@ void MainWindow::buildCrumbBar()
     layout->addWidget(pathBox, 1);
     layout->addSpacing(6);
 
-    // Search box - Win7 style with blue border on focus
+    // Search box - Windows 9x classic style with inset border
     m_searchBox = new QLineEdit;
     m_searchBox->setPlaceholderText("Search Control Panel");
     m_searchBox->setFixedWidth(190);
     m_searchBox->setFixedHeight(24);
     m_searchBox->setClearButtonEnabled(false);
     m_searchBox->addAction(themeIcon({"system-search"}), QLineEdit::TrailingPosition);
-    // Set initial style
+    // Set initial style - Windows 9x inset style
     m_searchBox->setStyleSheet(
-        "QLineEdit { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
+        "QLineEdit { "
+        "  border: 2px solid #0A246A;"
+        "  border-radius: 0px;"
+        "  background: #FFFFFF;"
+        "  color: #000000;"
+        "}"
     );
 
     // Italic only while the placeholder shows; upright once the user types.
@@ -161,14 +177,24 @@ void MainWindow::buildCrumbBar()
     QObject::connect(qApp, &QApplication::focusChanged, m_searchBox,
         [this](QWidget *, QWidget *now) {
             if (now == m_searchBox) {
-                // Blue border while typing
+                // Brighter border while typing
                 m_searchBox->setStyleSheet(
-                    "QLineEdit { border: 1px solid #7EB4EA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
+                    "QLineEdit { "
+                    "  border: 2px solid #3366CC;"
+                    "  border-radius: 0px;"
+                    "  background: #FFFFFF;"
+                    "  color: #000000;"
+                    "}"
                 );
             } else {
-                // Return to normal border
+                // Return to normal inset border
                 m_searchBox->setStyleSheet(
-                    "QLineEdit { border: 1px solid #C0CEDA; border-radius: 2px; background: #FFFFFF; color: #000000; }"
+                    "QLineEdit { "
+                    "  border: 2px solid #0A246A;"
+                    "  border-radius: 0px;"
+                    "  background: #FFFFFF;"
+                    "  color: #000000;"
+                    "}"
                 );
             }
         });
