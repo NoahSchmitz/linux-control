@@ -6,6 +6,8 @@
 #include "MainWindow.h"
 #include "IconHelper.h"
 
+#include "ui/NetworkConnectionsWindow.h"
+
 // AeroQt's application stylesheet skins QScrollBar with the Win7 look. We want
 // the desktop theme's native scroll bars instead, and they cannot be rescued
 // per-widget: while an app-wide stylesheet is active, Qt wraps even an
@@ -94,93 +96,15 @@ int main(int argc, char *argv[]) {
     // No setApplicationDisplayName: Qt appends it to every window/dialog title.
     app.setWindowIcon(themeIcon({"preferences-system"}));
 
-    // Custom Win7-style stylesheet (simplified version)
-    app.setStyleSheet(
-        "QScrollBar::horizontal {"
-        "  background: #F0F0F0;"
-        "  height: 17px;"
-        "  margin: 0px;"
-        "}"
-        "QScrollBar::handle:horizontal {"
-        "  background: #E0E0E0;"
-        "  border: 1px solid #C0CEDA;"
-        "  border-radius: 3px;"
-        "  min-width: 20px;"
-        "}"
-        "QScrollBar::handle:horizontal:hover {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {"
-        "  width: 16px;"
-        "  background: #F0F0F0;"
-        "}"
-        "QScrollBar::add-line:horizontal {"
-        "  subcontrol-position: right;"
-        "  subcontrol-origin: margin;"
-        "}"
-        "QScrollBar::sub-line:horizontal {"
-        "  subcontrol-position: top left;"
-        "  subcontrol-origin: margin;"
-        "}"
-        "QScrollBar::add-line:horizontal:hover {"
-        "  background: #E0E0E0;"
-        "}"
-        "QScrollBar::add-line:horizontal:pressed {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::sub-line:horizontal:hover {"
-        "  background: #E0E0E0;"
-        "}"
-        "QScrollBar::sub-line:horizontal:pressed {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::horizontal::add-page, QScrollBar::horizontal::sub-page {"
-        "  background: none;"
-        "}"
-        "QScrollBar::vertical {"
-        "  background: #F0F0F0;"
-        "  width: 17px;"
-        "  margin: 0px;"
-        "}"
-        "QScrollBar::handle:vertical {"
-        "  background: #E0E0E0;"
-        "  border: 1px solid #C0CEDA;"
-        "  border-radius: 3px;"
-        "  min-height: 20px;"
-        "}"
-        "QScrollBar::handle:vertical:hover {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {"
-        "  height: 16px;"
-        "  background: #F0F0F0;"
-        "}"
-        "QScrollBar::add-line:vertical {"
-        "  subcontrol-position: bottom;"
-        "  subcontrol-origin: margin;"
-        "}"
-        "QScrollBar::sub-line:vertical {"
-        "  subcontrol-position: top left;"
-        "  subcontrol-origin: margin;"
-        "}"
-        "QScrollBar::add-line:vertical:hover {"
-        "  background: #E0E0E0;"
-        "}"
-        "QScrollBar::add-line:vertical:pressed {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::sub-line:vertical:hover {"
-        "  background: #E0E0E0;"
-        "}"
-        "QScrollBar::sub-line:vertical:pressed {"
-        "  background: #D0D0D0;"
-        "}"
-        "QScrollBar::vertical::add-page, QScrollBar::vertical::sub-page {"
-        "  background: none;"
-        "}"
-    );
-
     new ScrollBarUnstyler(&app);   // native scroll bars; owned by the app
+
+    // If launched with the flag, show the Network Connections window directly
+    if (app.arguments().contains("--network-connections")) {
+        NetworkConnectionsWindow ncWindow;
+        ncWindow.setAttribute(Qt::WA_DeleteOnClose);
+        ncWindow.show();
+        return app.exec();
+    }
 
     MainWindow w;
     w.show();

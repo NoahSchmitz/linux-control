@@ -2,6 +2,7 @@
 #include "Commands.h"
 #include "IconHelper.h"
 #include "Win7Ui.h"
+#include "NetworkConnectionsWindow.h"
 
 #include <QScrollArea>
 #include <QLabel>
@@ -14,6 +15,7 @@
 #include <QDir>
 #include <QHostInfo>
 #include <QSysInfo>
+#include <QCoreApplication> // Required for applicationFilePath()
 
 // Data gathering
 // The interface backing the default route, read from /proc/net/route. Each line
@@ -79,7 +81,10 @@ NetworkSharingPage::NetInfo NetworkSharingPage::gatherInfo()
 QList<SidebarLink> NetworkSharingPage::sidebarLinks()
 {
     return {
-        Nav::command("Change adapter settings", networkSettings()),
+        Nav::command("Change adapter settings", QStringList{
+            QCoreApplication::applicationFilePath(),
+            "--network-connections"
+        }),
         Nav::plain("Change advanced sharing settings"),
     };
 }

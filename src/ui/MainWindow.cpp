@@ -123,8 +123,13 @@ void MainWindow::buildCrumbBar()
     m_forwardBtn = navBtns->forward();
     m_backBtn->setEnabled(false);
     m_forwardBtn->setEnabled(false);
+
     QObject::connect(m_backBtn, &QPushButton::clicked, this, &MainWindow::goBack);
     QObject::connect(m_forwardBtn, &QPushButton::clicked, this, &MainWindow::goForward);
+
+    layout->addWidget(m_backBtn);
+    layout->addWidget(m_forwardBtn);
+
     layout->addWidget(navBtns);
     layout->addSpacing(4);
 
