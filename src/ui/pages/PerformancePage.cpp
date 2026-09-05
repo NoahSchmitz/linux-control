@@ -58,7 +58,7 @@ PerformancePage::PerformancePage(QScrollArea *sidebar, QWidget *parent)
 
     auto linkStyle = QStringLiteral(
         "QLabel { color: #1F4E99; background: transparent; }"
-        "QLabel:hover { color: #0033AA; }");
+        "QLabel:hover { color: #000080; }");
 
     // Title + subtitle
     v->addWidget(Win7::pageTitle("Rate and improve your computer's performance",

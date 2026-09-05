@@ -286,7 +286,7 @@ QLabel *SystemPage::addInfoRow(QGridLayout *grid, int row,
         val->setCursor(Qt::PointingHandCursor);
         val->setStyleSheet(
             "QLabel { color: #1F4E99; background: transparent; }"
-            "QLabel:hover { color: #0033AA; }");
+            "QLabel:hover { color: #000080; }");
     } else {
         val->setStyleSheet("color: #000000; background: transparent;");
     }

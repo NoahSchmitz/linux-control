@@ -801,7 +801,7 @@ void LinuxUpdatePage::setSelectFilter(int filter)
     const QString base =
         "QPushButton { text-align: left; border: 1px solid transparent;"
         " padding: 4px 6px; background: transparent; color: #000000; }"
-        "QPushButton:hover { color: #0033AA; }";
+        "QPushButton:hover { color: #000080; }";
     const QString sel =
         "QPushButton { text-align: left; border: 1px solid #B8CDEA;"
         " padding: 4px 6px; background: #D6E4F5; color: #000000; }";

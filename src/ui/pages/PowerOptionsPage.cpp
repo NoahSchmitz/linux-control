@@ -373,7 +373,7 @@ QWidget *PowerOptionsPage::buildPlanRow(const Plan &plan)
     change->setCursor(Qt::PointingHandCursor);
     change->setStyleSheet(
         "QLabel { color: #1F4E99; background: transparent; }"
-        "QLabel:hover { color: #0033AA; }");
+        "QLabel:hover { color: #000080; }");
     nameLine->addWidget(change, 0, Qt::AlignVCenter);
 
     textV->addLayout(nameLine);

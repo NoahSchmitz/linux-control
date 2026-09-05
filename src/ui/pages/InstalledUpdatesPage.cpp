@@ -100,7 +100,6 @@ QList<InstalledUpdatesPage::UpdateInfo> InstalledUpdatesPage::gatherUpdates()
 QList<SidebarLink> InstalledUpdatesPage::sidebarLinks()
 {
     return {
-        Nav::home("Control Panel Home"),
         Nav::to("Uninstall a program", PageId::ProgramsFeatures),
         Nav::plain("Turn Linux features on or off"),
     };

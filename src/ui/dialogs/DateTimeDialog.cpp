@@ -196,7 +196,7 @@ QLabel *makeHelpLink(const QString &text)
     l->setFont(f);
     l->setStyleSheet(
         "QLabel { color: #1F4E99; background: transparent; }"
-        "QLabel:hover { color: #0033AA; }");
+        "QLabel:hover { color: #000080; }");
     l->setCursor(Qt::PointingHandCursor);
     return l;
 }

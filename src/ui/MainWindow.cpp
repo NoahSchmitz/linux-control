@@ -93,16 +93,6 @@ MainWindow::MainWindow(QWidget *parent)
     setCentralWidget(central);
     statusBar()->hide();
 
-    // Finalize crumb bar styling (must be set after it's added to layout)
-    m_crumbBar->setStyleSheet(
-        "QWidget { "
-        "  background: #E0E0E0;"
-        "  border-bottom: 2px solid #808080;"
-        "  border-top: 1px solid #FFFFFF;"
-        "  border-left: 1px solid #FFFFFF;"
-        "  border-right: 1px solid #FFFFFF;"
-        "}"
-    );
     setAttribute(Qt::WA_TranslucentBackground, false);
 
     // Intercept mouse side-button events from any child widget.
@@ -116,31 +106,76 @@ void MainWindow::buildCrumbBar()
     auto *layout = new QHBoxLayout(m_crumbBar);
     layout->setContentsMargins(4, 3, 6, 3);
     layout->setSpacing(2);
+    m_crumbBar->setObjectName("crumbBar");
 
-    // Windows 9x/2000-style back/forward nav buttons (now visible with proper styling)
-    auto *navBtns = new NavButtons(m_crumbBar);
-    m_backBtn = navBtns->back();
-    m_forwardBtn = navBtns->forward();
+    // Windows 9x/2000-style back/forward nav buttons
+    m_backBtn = new QPushButton(m_crumbBar);
+    m_forwardBtn = new QPushButton(m_crumbBar);
     m_backBtn->setEnabled(false);
     m_forwardBtn->setEnabled(false);
 
     QObject::connect(m_backBtn, &QPushButton::clicked, this, &MainWindow::goBack);
     QObject::connect(m_forwardBtn, &QPushButton::clicked, this, &MainWindow::goForward);
 
+    // Give them unique object names for the stylesheet
+    m_backBtn->setObjectName("navBackBtn");
+    m_forwardBtn->setObjectName("navForwardBtn");
+
+    // Apply system icons
+    m_backBtn->setIcon(themeIcon({"go-previous", "arrow-left"}));
+    m_forwardBtn->setIcon(themeIcon({"go-next", "arrow-right"}));
+
+    // Add them to the layout
     layout->addWidget(m_backBtn);
     layout->addWidget(m_forwardBtn);
-
-    layout->addWidget(navBtns);
     layout->addSpacing(4);
+
+    // Apply the stylesheet to m_crumbBar
+    m_crumbBar->setStyleSheet(
+        "QWidget { "
+        "  background: #c0c0c0;"
+        "  border-top: 2px solid #808080;"
+        "  border-bottom: 2px solid #dfdfdf;"
+        "}"
+        /* Target ONLY the crumb bar container */
+        "#crumbBar { "
+        "  background: #c0c0c0;"
+        "  border-top: 2px solid #808080;"
+        "  border-bottom: 2px solid #dfdfdf;"
+        "}"
+        /* Default & Disabled state: Flat/No visible borders */
+        "QPushButton#navBackBtn, QPushButton#navForwardBtn { "
+        "  background-color: #c0c0c0; "
+        "  border: 2px solid #c0c0c0; " 
+        "  border-radius: 0px; " 
+        "  padding: 2px 4px; "
+        "}"
+        /* Hover state: Classic Win9x 3D borders */
+        "QPushButton#navBackBtn:hover, QPushButton#navForwardBtn:hover { "
+        "  border-top-color: #ffffff; "
+        "  border-left-color: #ffffff; "
+        "  border-right-color: #808080; "
+        "  border-bottom-color: #808080; "
+        "}"
+        /* Pressed state: Invert the bevel and shift the icon */
+        "QPushButton#navBackBtn:pressed, QPushButton#navForwardBtn:pressed { "
+        "  border-top-color: #808080; "
+        "  border-left-color: #808080; "
+        "  border-right-color: #ffffff; "
+        "  border-bottom-color: #ffffff; "
+        "  padding: 3px 3px 1px 5px; "
+        "}"
+    );
 
     // Address path box: Windows 9x classic style - inset border with white background
     auto *pathBox = new QWidget;
     pathBox->setObjectName("addressBox");
     pathBox->setStyleSheet(
         "#addressBox { "
-        "  border: 2px solid #0A246A;"
+        "  border-left: 2px solid #808080;"
+        "  border-right: 2px solid #dfdfdf;"
         "  border-radius: 0px;"
-        "  background: #FFFFFF;"
+        // "  background: #FFFFFF;"
         "}"
     );
     pathBox->setFixedHeight(24);
@@ -161,9 +196,8 @@ void MainWindow::buildCrumbBar()
     // Set initial style - Windows 9x inset style
     m_searchBox->setStyleSheet(
         "QLineEdit { "
-        "  border: 2px solid #0A246A;"
         "  border-radius: 0px;"
-        "  background: #FFFFFF;"
+        "  background-color: #c0c0c0;"
         "  color: #000000;"
         "}"
     );
@@ -185,7 +219,7 @@ void MainWindow::buildCrumbBar()
                 // Brighter border while typing
                 m_searchBox->setStyleSheet(
                     "QLineEdit { "
-                    "  border: 2px solid #3366CC;"
+                    "  border: 2px solid #000080;"
                     "  border-radius: 0px;"
                     "  background: #FFFFFF;"
                     "  color: #000000;"
@@ -195,7 +229,7 @@ void MainWindow::buildCrumbBar()
                 // Return to normal inset border
                 m_searchBox->setStyleSheet(
                     "QLineEdit { "
-                    "  border: 2px solid #0A246A;"
+                    "  border: 2px solid #000000;"
                     "  border-radius: 0px;"
                     "  background: #FFFFFF;"
                     "  color: #000000;"
@@ -232,7 +266,7 @@ void MainWindow::setCrumbTrail(const QStringList &trail)
     m_homeCrumb->setCursor(Qt::PointingHandCursor);
     m_homeCrumb->setStyleSheet(
         "QLabel#crumbHome { color: #000000; }"
-        "QLabel#crumbHome:hover { color: #003399; }"
+        "QLabel#crumbHome:hover { color: #000080; }"
     );
     m_homeCrumb->installEventFilter(this);
     m_pathLayout->addWidget(m_homeCrumb);
@@ -250,7 +284,7 @@ void MainWindow::setCrumbTrail(const QStringList &trail)
             label->setCursor(Qt::PointingHandCursor);
             label->setStyleSheet(
                 "QLabel { color: #000000; }"
-                "QLabel:hover { color: #003399; }"
+                "QLabel:hover { color: #000080; }"
             );
             label->installEventFilter(this);
             // Build the partial path up to this segment.
@@ -773,9 +807,15 @@ MainWindow::Sidebar MainWindow::buildSidebarShell(int initialWidth)
 
     auto *pane = new QFrame;
     pane->setObjectName("navPane");
-    pane->setFixedWidth(195);
+    pane->setFixedWidth(256);
     pane->setStyleSheet(
-        "#navPane { background: #F1F4F9; border-right: 1px solid #DCE0E8; }"
+        "#navPane { "
+        "  background-color: #ffffff; "
+        "  background-image: url('./WVLEFT.PNG'); "
+        "  background-position: top left; "
+        "  background-repeat: no-repeat; "
+        "  border-right: 1px solid #ffffff; "
+        "}"
     );
     auto *outerV = new QVBoxLayout(pane);
     outerV->setContentsMargins(0, 0, 0, 0);
@@ -790,19 +830,59 @@ MainWindow::Sidebar MainWindow::buildSidebarShell(int initialWidth)
     navV->setSpacing(0);
     outerV->addWidget(textWrap);
 
-    auto *controlHome = new QPushButton("Control Panel Home");
+    // --- Control Panel icon ---
+    auto *homeIcon = new QLabel;
+    // Use IconHelper to fetch the symbolic icon, falling back to preferences-system if missing
+    homeIcon->setPixmap(themeIcon({"org.gnome.Settings-symbolic", "preferences-system"}).pixmap(64, 64));
+    // padding-left 12 matches the controlHome button below so they align perfectly
+    homeIcon->setStyleSheet("background: transparent; padding-left: 12px;");
+    navV->addWidget(homeIcon);
+    navV->addSpacing(8); // Creates a little breathing room between the icon and the text
+    // ---------------------------------
+
+    auto *controlHome = new QPushButton("Control Panel");
     controlHome->setCursor(Qt::PointingHandCursor);
     controlHome->setFlat(true);
     controlHome->setStyleSheet(
         // padding-left 12 matches the category links' contentsMargins(12, …) so
         // "Control Panel Home" lines up with the rest of the sidebar options.
-        "QPushButton { border: none; background: transparent; color: #000000;"
-        " text-align: left; padding: 0 0 0 12; font-size: 9pt; }"
-        "QPushButton:hover { color: #0033AA; }"
+        "QPushButton {"
+            "border: none;" 
+            "background: transparent;"
+            "color: #000000;"
+            "text-align: left;"
+            "padding: 0 0 0 12;"
+            "font-size: 18pt;"
+            "font-weight: bold;"
+            "}"
+            "QPushButton:hover { color: #000080; }"
     );
     QObject::connect(controlHome, &QPushButton::clicked, this,
                      &MainWindow::navigateHome, Qt::QueuedConnection);
     navV->addWidget(controlHome);
+
+    // --- ADDED: 4-color horizontal bar ---
+    auto *colorBar = new QWidget;
+    colorBar->setFixedHeight(2);
+    
+    auto *barLayout = new QHBoxLayout(colorBar);
+    barLayout->setContentsMargins(0, 0, 0, 0);
+    barLayout->setSpacing(0);
+
+    auto *c1 = new QFrame; c1->setStyleSheet("background-color: #f65a36; border: none;");
+    auto *c2 = new QFrame; c2->setStyleSheet("background-color: #ffd737; border: none;");
+    auto *c3 = new QFrame; c3->setStyleSheet("background-color: #87d75f; border: none;");
+    auto *c4 = new QFrame; c4->setStyleSheet("background-color: #37afff; border: none;");
+
+    barLayout->addWidget(c1);
+    barLayout->addWidget(c2);
+    barLayout->addWidget(c3);
+    barLayout->addWidget(c4);
+
+    navV->addSpacing(4); // Slight gap between the text and the bar
+    navV->addWidget(colorBar);
+    // -------------------------------------
+
     navV->addSpacing(16);
 
     clip->setWidget(pane);
@@ -811,7 +891,7 @@ MainWindow::Sidebar MainWindow::buildSidebarShell(int initialWidth)
 
 QScrollArea *MainWindow::buildNavSidebar(const QString &currentCategory)
 {
-    // Width 0: buildCategoryPage animates the clip open to 195px.
+    // Width 0: buildCategoryPage animates the clip open to 256px.
     Sidebar bar = buildSidebarShell(0);
 
     for (const QString &cat : navOrder()) {
@@ -841,7 +921,7 @@ QScrollArea *MainWindow::buildNavSidebar(const QString &currentCategory)
             link->setContentsMargins(12, 3, 0, 3);
             link->setStyleSheet(
                 "QLabel { color: #000000; background: transparent; }"
-                "QLabel:hover { color: #0033AA; }"
+                "QLabel:hover { color: #000080; }"
             );
             link->installEventFilter(this);
             m_navLinks.insert(link, cat);
@@ -885,7 +965,7 @@ void MainWindow::registerLinkTarget(QLabel *label, const LinkTarget &target)
 QScrollArea *MainWindow::buildSubpageSidebar(const QList<SidebarLink> &links,
                                               const QList<SidebarLink> &seeAlso)
 {
-    Sidebar bar = buildSidebarShell(195);
+    Sidebar bar = buildSidebarShell(256);
 
     auto addLink = [&](const SidebarLink &sl) {
         // Show the branded wording, but match routing on the canonical text.
@@ -898,7 +978,7 @@ QScrollArea *MainWindow::buildSubpageSidebar(const QList<SidebarLink> &links,
         l->setContentsMargins(12, 3, 0, 3);
         l->setStyleSheet(
             "QLabel { color: #000000; background: transparent; }"
-            "QLabel:hover { color: #0033AA; }"
+            "QLabel:hover { color: #000080; }"
         );
         l->installEventFilter(this);
         if (sl.text == "Check for updates")
@@ -984,7 +1064,7 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
         l->setCursor(Qt::PointingHandCursor);
         l->setStyleSheet(
             "QLabel { color: #1F4E99; }"
-            "QLabel:hover { color: #0033AA; }"
+            "QLabel:hover { color: #000080; }"
         );
         l->installEventFilter(this);
         // Known task links navigate to their page (others are decorative).
@@ -1147,11 +1227,11 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
     contentV->addStretch(1);
     root->addWidget(contentWrap, 1);
 
-    // sidebarClip slides from 0 to 195; sidebar inside stays full-width so text
+    // sidebarClip slides from 0 to 256; sidebar inside stays full-width so text
     // never reflows. The content pane rides rightward naturally as the clip grows.
     auto *sidebarAnim = new QVariantAnimation(page);
     sidebarAnim->setStartValue(0);
-    sidebarAnim->setEndValue(195);
+    sidebarAnim->setEndValue(256);
     sidebarAnim->setDuration(250);
     sidebarAnim->setEasingCurve(QEasingCurve::OutCubic);
     QObject::connect(sidebarAnim, &QVariantAnimation::valueChanged, sidebarClip,

@@ -86,7 +86,7 @@ inline QLabel *bodyLabel(const QString &text, bool link = false)
         l->setCursor(Qt::PointingHandCursor);
         l->setStyleSheet(
             "QLabel { color: #1F4E99; background: transparent; }"
-            "QLabel:hover { color: #0033AA; }");
+            "QLabel:hover { color: #000080; }");
     } else {
         l->setStyleSheet("color: #000000; background: transparent;");
     }
@@ -416,15 +416,7 @@ inline void configureListTree(QTreeWidget *tree)
     tree->header()->setDefaultAlignment(Qt::AlignLeft);
     tree->header()->setStretchLastSection(true);
     setPointSize(tree->header(), 9);
-    tree->header()->setStyleSheet(
-        "QHeaderView::section {"
-        "  background: #F0F0F0;"
-        "  border: none;"
-        "  border-bottom: 1px solid #CCCCCC;"
-        "  border-right: 1px solid #CCCCCC;"
-        "  padding: 4px;"
-        "  font-size: 9pt;"
-        "}");
+
     // Pin the header height instead of trusting its size hint: the hint is
     // computed once before the app-wide Aero stylesheet polishes the widget
     // and cached, leaving the header roughly twice as tall until a sort click
@@ -505,52 +497,12 @@ inline NavButtons::NavButtons(QWidget *parent)
     m_backBtn->setFixedSize(30, 30);
     m_backBtn->setIcon(Win7::arrowPixmap(Qt::LeftArrow, QColor(0x1F, 0x4E, 0x99), 12));
     m_backBtn->setIconSize(QSize(16, 16));
-    m_backBtn->setStyleSheet(
-        "QPushButton {"
-        "  background: #F0F0F0;"
-        "  border: 1px solid #C0C0C0;"
-        "  border-radius: 2px;"
-        "  padding: 2px;"
-        "}"
-        "QPushButton:hover {"
-        "  background: #E0E0E0;"
-        "  border: 1px solid #999999;"
-        "}"
-        "QPushButton:pressed {"
-        "  background: #D0D0D0;"
-        "  border: 1px solid #777777;"
-        "}"
-        "QPushButton:disabled {"
-        "  color: #A0A0A0;"
-        "  border-color: #D0D0D0;"
-        "}"
-    );
 
     m_forwardBtn = new QPushButton(this);
     m_forwardBtn->setCursor(Qt::PointingHandCursor);
     m_forwardBtn->setFixedSize(30, 30);
     m_forwardBtn->setIcon(Win7::arrowPixmap(Qt::RightArrow, QColor(0x1F, 0x4E, 0x99), 12));
     m_forwardBtn->setIconSize(QSize(16, 16));
-    m_forwardBtn->setStyleSheet(
-        "QPushButton {"
-        "  background: #F0F0F0;"
-        "  border: 1px solid #C0C0C0;"
-        "  border-radius: 2px;"
-        "  padding: 2px;"
-        "}"
-        "QPushButton:hover {"
-        "  background: #E0E0E0;"
-        "  border: 1px solid #999999;"
-        "}"
-        "QPushButton:pressed {"
-        "  background: #D0D0D0;"
-        "  border: 1px solid #777777;"
-        "}"
-        "QPushButton:disabled {"
-        "  color: #A0A0A0;"
-        "  border-color: #D0D0D0;"
-        "}"
-    );
 
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);

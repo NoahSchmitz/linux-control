@@ -46,7 +46,7 @@ LinkLabel *commandLink(const QString &text) {
     auto *l = new LinkLabel(text);
     l->setStyleSheet(
         "QLabel { color: #1A1A1A; background: transparent; }"
-        "QLabel:hover { color: #0033AA; }");
+        "QLabel:hover { color: #000080; }");
     return l;
 }
 

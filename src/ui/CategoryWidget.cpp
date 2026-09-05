@@ -58,7 +58,7 @@ CategoryWidget::CategoryWidget(const CategoryItem &item, QWidget *parent)
         taskLabel->setCursor(Qt::PointingHandCursor);
         taskLabel->setStyleSheet(
             "QLabel { color: #1F4E99; }"
-            "QLabel:hover { color: #0033AA; }"
+            "QLabel:hover { color: #000080; }"
         );
         taskLabel->installEventFilter(this);
         m_taskLabels.insert(taskLabel, task);
