@@ -536,7 +536,7 @@ ProgramsFeaturesPage::ProgramsFeaturesPage(QScrollArea *sidebar, QWidget *parent
     // The Win7 warning-dialog sound, loaded once so it's ready to play instantly
     // when the uninstall/reinstall dialog opens.
     m_dialogSound.setSource(QUrl::fromLocalFile(
-        "/usr/share/sounds/Windows 7/og/Windows Exclamation.wav"));
+        "/usr/share/sounds/Win98/stereo/dialog-warning.wav"));
     m_dialogSound.setVolume(1.0f);
 
     auto *contentV = Win7::pageScaffold(this, sidebar, /*bottomMargin=*/0);

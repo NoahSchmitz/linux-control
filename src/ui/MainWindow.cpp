@@ -64,7 +64,7 @@ MainWindow::MainWindow(QWidget *parent)
     resize(1000, 650);
 
     m_navSound.setSource(QUrl::fromLocalFile(
-        "/usr/share/sounds/Windows 7/og/Windows Navigation Start.wav"));
+        "/usr/share/sounds/Win98/stereo/start.wav"));
     m_navSound.setVolume(1.0f);
 
     // Hide menu bar (like real Windows 7 Control Panel)
@@ -811,7 +811,7 @@ MainWindow::Sidebar MainWindow::buildSidebarShell(int initialWidth)
     pane->setStyleSheet(
         "#navPane { "
         "  background-color: #ffffff; "
-        "  background-image: url('./WVLEFT.PNG'); "
+        "  background-image: url('/usr/share/themes/Win98/WVLEFT.PNG'); "
         "  background-position: top left; "
         "  background-repeat: no-repeat; "
         "  border-right: 1px solid #ffffff; "
