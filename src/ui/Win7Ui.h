@@ -317,12 +317,6 @@ public:
         setFocusPolicy(Qt::NoFocus);
         if (!interactive)
             setAttribute(Qt::WA_TransparentForMouseEvents);
-        setStyleSheet(
-            "QToolButton { border: 1px solid #C0CEDA; border-radius: 10px;"
-            " background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            " stop:0 #FDFEFF, stop:1 #E8F1F8); }"
-            "QToolButton:hover { background: #E4EEF7; }"
-            "QToolButton:pressed { background: #D6E4F0; }");
     }
 
 protected:
@@ -368,8 +362,6 @@ inline QFrame *commandBar(QHBoxLayout **layoutOut = nullptr)
     auto *bar = new QFrame;
     bar->setObjectName("win7CommandBar");
     bar->setFixedHeight(28);
-    bar->setStyleSheet(
-        "#win7CommandBar { background: #F4F7FB; border-bottom: 1px solid #D9D9D9; }");
     auto *h = new QHBoxLayout(bar);
     h->setContentsMargins(8, 0, 8, 0);
     h->setSpacing(6);
@@ -401,8 +393,6 @@ inline QFrame *statusPanel(int height, QHBoxLayout **layoutOut = nullptr)
     auto *bar = new QFrame;
     bar->setObjectName("win7StatusPanel");
     bar->setFixedHeight(height);
-    bar->setStyleSheet(
-        "#win7StatusPanel { background: #F4F7FB; border-top: 1px solid #D9D9D9; }");
     auto *h = new QHBoxLayout(bar);
     h->setContentsMargins(10, 0, 10, 0);
     h->setSpacing(8);
@@ -512,42 +502,12 @@ inline NavButtons::NavButtons(QWidget *parent)
     m_backBtn = new QPushButton(this);
     m_backBtn->setCursor(Qt::PointingHandCursor);
     m_backBtn->setFixedSize(30, 30);
-    m_backBtn->setStyleSheet(
-        "QPushButton {"
-        "  border: 1px solid #C0CEDA;"
-        "  border-radius: 15px;"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
-        "}"
-        "QPushButton:hover {"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
-        "}"
-        "QPushButton:pressed {"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
-        "}"
-    );
+
 
     m_forwardBtn = new QPushButton(this);
     m_forwardBtn->setCursor(Qt::PointingHandCursor);
     m_forwardBtn->setFixedSize(30, 30);
-    m_forwardBtn->setStyleSheet(
-        "QPushButton {"
-        "  border: 1px solid #C0CEDA;"
-        "  border-radius: 15px;"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
-        "}"
-        "QPushButton:hover {"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
-        "}"
-        "QPushButton:pressed {"
-        "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-        "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
-        "}"
-    );
+
 
     QHBoxLayout *layout = new QHBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -570,22 +530,6 @@ public:
         setFixedSize(30, 30);
         setCheckable(false);
         setAutoRaise(false);
-        setStyleSheet(
-            "QToolButton {"
-            "  border: 1px solid #C0CEDA;"
-            "  border-radius: 15px;"
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            "    stop:0 #FDFEFF, stop:1 #E8F1F8);"
-            "}"
-            "QToolButton:hover {"
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            "    stop:0 #FDFEFF, stop:1 #E4EEF7);"
-            "}"
-            "QToolButton:pressed {"
-            "  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,"
-            "    stop:0 #E8F1F8, stop:1 #D6E4F0);"
-            "}"
-        );
     }
 
 protected:
