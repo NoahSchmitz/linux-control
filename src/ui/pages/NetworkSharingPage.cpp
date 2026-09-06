@@ -2,7 +2,7 @@
 #include "Commands.h"
 #include "IconHelper.h"
 #include "Win7Ui.h"
-#include "NetworkConnectionsWindow.h"
+#include "NetworkConnectionsPage.h"
 
 #include <QScrollArea>
 #include <QLabel>
@@ -81,10 +81,7 @@ NetworkSharingPage::NetInfo NetworkSharingPage::gatherInfo()
 QList<SidebarLink> NetworkSharingPage::sidebarLinks()
 {
     return {
-        Nav::command("Change adapter settings", QStringList{
-            QCoreApplication::applicationFilePath(),
-            "--network-connections"
-        }),
+        Nav::to("Change adapter settings", PageId::NetworkConnections),
         Nav::plain("Change advanced sharing settings"),
     };
 }

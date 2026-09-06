@@ -11,10 +11,10 @@
 #include <QPushButton>
 #include <QStyle>
 
-class NetworkConnectionsWindow : public QWidget {
+class NetworkConnectionsPage : public QWidget {
     Q_OBJECT
 public:
-    NetworkConnectionsWindow(QWidget *parent = nullptr) : QWidget(parent) {
+    NetworkConnectionsPage(QWidget *parent = nullptr) : QWidget(parent) {
         setWindowTitle("Network Connections");
         resize(520, 360);
 
@@ -28,7 +28,7 @@ public:
         m_listWidget->setResizeMode(QListWidget::Adjust);
         m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
 
-        connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &NetworkConnectionsWindow::showContextMenu);
+        connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &NetworkConnectionsPage::showContextMenu);
         connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item){ showProperties(item); });
 
         layout->addWidget(m_listWidget);

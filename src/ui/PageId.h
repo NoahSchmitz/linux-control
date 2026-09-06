@@ -46,6 +46,7 @@ enum class PageId {
     CredentialManager,
     FolderOptions,
     TaskbarAndStartMenu,
+    NetworkConnections,
 };
 
 // Where a sidebar link goes when it is clicked. A link can navigate to another
@@ -66,12 +67,6 @@ struct SidebarLink {
     LinkTarget target;
 };
 
-// Concise constructors so a page can declare its sidebar as plain data, e.g.
-//   return {
-//       Nav::plain("Turn Linux Firewall on or off"),
-//       Nav::to("Network and Sharing Center", PageId::NetworkSharing),
-//       Nav::command("Change adapter settings", kcm("kcm_networkmanagement")),
-//   };
 namespace Nav {
 
 // A link that navigates to another detail page.

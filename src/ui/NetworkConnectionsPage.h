@@ -2,8 +2,11 @@
 
 #include <QWidget>
 #include <QListWidget>
+#include <QScrollArea>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
+#include <QProcess>
+#include <QMenu>
 #include <QNetworkInterface>
 #include <QMenu>
 #include <QMessageBox>
@@ -11,6 +14,9 @@
 #include <QLabel>
 #include <QFormLayout>
 #include <QPushButton>
+#include <QProgressBar>
+#include <QTimer>
+#include <QFile>
 #include <QStyle>
 #include <QProcess>
 #include <QRadioButton>
@@ -22,7 +28,8 @@
 #include <QSpinBox>
 #include <QCheckBox>
 #include <QRegularExpression>
-
+#include "Win7Ui.h"
+#include "Commands.h"
 
 // Dialog replicating the "Internet Protocol Version 4 (TCP/IPv4) Properties" window
 class IPv4PropertiesDialog : public QDialog {
@@ -521,7 +528,7 @@ public:
         
         auto *tabWidget = new QTabWidget(this);
         auto *netTab = new QWidget(tabWidget);
-        auto *netLayout = new QVBoxLayout();
+        auto *netLayout = new QVBoxLayout(netTab); // Assign layout directly to netTab
 
         netLayout->addWidget(new QLabel("Connect using:", netTab));
         
@@ -535,9 +542,9 @@ public:
         netLayout->addLayout(adapterRow);
 
         netLayout->addSpacing(10);
-        netLayout->addWidget(new QLabel("This connection uses the following items:"));
+        netLayout->addWidget(new QLabel("This connection uses the following items:", netTab));
 
-        m_itemsList = new QListWidget(this);
+        m_itemsList = new QListWidget(netTab);
 
         addListItem("QoS Packet Scheduler");
         addListItem("Internet Protocol Version 4 (TCP/IPv4)");
@@ -550,18 +557,14 @@ public:
         netLayout->addWidget(m_itemsList);
 
         auto *listBtns = new QHBoxLayout();
-        // auto *installBtn = new QPushButton("Install...", netTab);
-        // auto *uninstallBtn = new QPushButton("Uninstall", netTab);
-        m_propsBtn = new QPushButton("Properties", this);
+        m_propsBtn = new QPushButton("Properties", netTab);
         m_propsBtn->setEnabled(false); 
 
-        // listBtns->addWidget(installBtn);
-        // listBtns->addWidget(uninstallBtn);
         listBtns->addStretch();
         listBtns->addWidget(m_propsBtn);
         netLayout->addLayout(listBtns);
 
-        auto *descGroup = new QGroupBox("Description", this);
+        auto *descGroup = new QGroupBox("Description", netTab);
         auto *descLayout = new QVBoxLayout(descGroup);
         m_descLabel = new QLabel("Select an item to see its description.", descGroup);
         m_descLabel->setWordWrap(true);
@@ -570,7 +573,10 @@ public:
         descLayout->addWidget(m_descLabel);
         netLayout->addWidget(descGroup);
 
-        mainLayout->addLayout(netLayout);
+        // Populate Tab Widget
+        tabWidget->addTab(netTab, "Networking");
+        tabWidget->addTab(new QWidget(tabWidget), "Sharing");
+        mainLayout->addWidget(tabWidget);
 
         auto *bottomBtns = new QHBoxLayout();
         bottomBtns->addStretch();
@@ -670,16 +676,334 @@ private:
         accept();
     }
 };
-// Main Network Connections Window
 
-class NetworkConnectionsWindow : public QWidget {
+class ConnectionStatusDialog : public QDialog {
 public:
-    NetworkConnectionsWindow(QWidget *parent = nullptr) : QWidget(parent) {
-        setWindowTitle("Network Connections");
-        resize(520, 360);
+    ConnectionStatusDialog(const QString &ifaceName, QWidget *parent = nullptr) 
+        : QDialog(parent), m_iface(ifaceName), m_secondsConnected(0) {
+        setWindowTitle(QString("%1 Status").arg(ifaceName));
+        resize(380, 460);
 
-        auto *layout = new QVBoxLayout(this);
-        layout->setContentsMargins(8, 8, 8, 8);
+        auto *mainLayout = new QVBoxLayout(this);
+        auto *tabWidget = new QTabWidget(this);
+
+        // ================= GENERAL TAB =================
+        auto *generalTab = new QWidget(tabWidget);
+        auto *genLayout = new QVBoxLayout(generalTab);
+
+        auto *connGroup = new QGroupBox("Connection", generalTab);
+        auto *connForm = new QFormLayout(connGroup);
+
+        m_statusLabel = new QLabel("Disconnected", connGroup);
+        m_durationLabel = new QLabel("00:00:00", connGroup);
+        m_speedLabel = new QLabel("Unknown", connGroup);
+
+        connForm->addRow("Status:", m_statusLabel);
+
+        checkIfaceType();
+
+        if (m_isWifi) {
+            m_networkLabel = new QLabel("Searching...", connGroup);
+            connForm->addRow("Network:", m_networkLabel);
+        }
+
+        connForm->addRow("Duration:", m_durationLabel);
+        connForm->addRow("Speed:", m_speedLabel);
+
+        if (m_isWifi) {
+            m_signalBar = new QProgressBar(connGroup);
+            m_signalBar->setRange(0, 100);
+            m_signalBar->setTextVisible(false);
+            m_signalBar->setFixedHeight(14);
+            connForm->addRow("Signal Strength:", m_signalBar);
+        }
+
+        genLayout->addWidget(connGroup);
+
+        // Activity Group
+        auto *actGroup = new QGroupBox("Activity", generalTab);
+        auto *actLayout = new QVBoxLayout(actGroup);
+
+        auto *headerLayout = new QHBoxLayout();
+        auto *iconLabel = new QLabel(actGroup);
+        iconLabel->setPixmap(style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(32, 32));
+        
+        headerLayout->addStretch();
+        headerLayout->addWidget(new QLabel("Sent", actGroup));
+        headerLayout->addSpacing(15);
+        headerLayout->addWidget(iconLabel);
+        headerLayout->addSpacing(15);
+        headerLayout->addWidget(new QLabel("Received", actGroup));
+        headerLayout->addStretch();
+
+        actLayout->addLayout(headerLayout);
+
+        auto *packetsLayout = new QHBoxLayout();
+        m_sentLabel = new QLabel("0", actGroup);
+        m_recvLabel = new QLabel("0", actGroup);
+
+        packetsLayout->addWidget(new QLabel("Packets:", actGroup));
+        packetsLayout->addStretch();
+        packetsLayout->addWidget(m_sentLabel);
+        packetsLayout->addSpacing(20);
+        packetsLayout->addWidget(new QLabel("|", actGroup));
+        packetsLayout->addSpacing(20);
+        packetsLayout->addWidget(m_recvLabel);
+        packetsLayout->addStretch();
+
+        actLayout->addLayout(packetsLayout);
+        genLayout->addWidget(actGroup);
+
+        tabWidget->addTab(generalTab, "General");
+
+        // ================= SUPPORT TAB =================
+        auto *supportTab = new QWidget(tabWidget);
+        auto *suppLayout = new QVBoxLayout(supportTab);
+
+        auto *suppGroup = new QGroupBox("Internet Protocol (TCP/IP)", supportTab);
+        auto *suppForm = new QFormLayout(suppGroup);
+
+        m_addrTypeLabel = new QLabel("Assigned by DHCP", suppGroup);
+        m_ipLabel = new QLabel("0.0.0.0", suppGroup);
+        m_maskLabel = new QLabel("0.0.0.0", suppGroup);
+        m_gatewayLabel = new QLabel("0.0.0.0", suppGroup);
+
+        suppForm->addRow("Address Type:", m_addrTypeLabel);
+        suppForm->addRow("IP Address:", m_ipLabel);
+        suppForm->addRow("Subnet Mask:", m_maskLabel);
+        suppForm->addRow("Default Gateway:", m_gatewayLabel);
+
+        suppLayout->addWidget(suppGroup);
+
+        auto *detailsBtnLayout = new QHBoxLayout();
+        auto *detailsBtn = new QPushButton("Details...", supportTab);
+        detailsBtnLayout->addWidget(detailsBtn);
+        detailsBtnLayout->addStretch();
+        suppLayout->addLayout(detailsBtnLayout);
+        suppLayout->addStretch();
+
+        tabWidget->addTab(supportTab, "Support");
+        mainLayout->addWidget(tabWidget);
+
+        // ================= BOTTOM BUTTONS =================
+        auto *bottomBtns = new QHBoxLayout();
+        auto *propBtn = new QPushButton("Properties", this);
+        auto *disableBtn = new QPushButton("Disable", this);
+        
+        bottomBtns->addWidget(propBtn);
+        bottomBtns->addWidget(disableBtn);
+
+        if (m_isWifi) {
+            auto *wifiBtn = new QPushButton("View Wireless Networks", this);
+            bottomBtns->addWidget(wifiBtn);
+            connect(wifiBtn, &QPushButton::clicked, this, []() {
+                QProcess::startDetached("nm-connection-editor", {});
+            });
+        }
+
+        bottomBtns->addStretch();
+        auto *closeBtn = new QPushButton("Close", this);
+        bottomBtns->addWidget(closeBtn);
+        mainLayout->addLayout(bottomBtns);
+
+        // Signal Connections
+        connect(closeBtn, &QPushButton::clicked, this, &QDialog::accept);
+        connect(propBtn, &QPushButton::clicked, this, [this]() {
+            AdapterPropertiesDialog dlg(m_iface, m_iface, this);
+            dlg.exec();
+        });
+        connect(disableBtn, &QPushButton::clicked, this, [this]() {
+            QProcess::execute("pkexec", {"ip", "link", "set", m_iface, "down"});
+            reject();
+        });
+        connect(detailsBtn, &QPushButton::clicked, this, &ConnectionStatusDialog::showDetailsDialog);
+
+        // Timer for Live Refresh
+        m_timer = new QTimer(this);
+        connect(m_timer, &QTimer::timeout, this, &ConnectionStatusDialog::updateMetrics);
+        m_timer->start(1000);
+
+        loadSupportData();
+        updateMetrics();
+    }
+
+private:
+    QString m_iface;
+    bool m_isWifi = false;
+    int m_secondsConnected;
+    QTimer *m_timer;
+
+    QLabel *m_statusLabel;
+    QLabel *m_durationLabel;
+    QLabel *m_speedLabel;
+    QLabel *m_networkLabel = nullptr;
+    QProgressBar *m_signalBar = nullptr;
+    QLabel *m_sentLabel;
+    QLabel *m_recvLabel;
+
+    QLabel *m_addrTypeLabel;
+    QLabel *m_ipLabel;
+    QLabel *m_maskLabel;
+    QLabel *m_gatewayLabel;
+
+    void checkIfaceType() {
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "TYPE", "dev", "show", m_iface});
+        proc.waitForFinished();
+        QString type = QString::fromUtf8(proc.readAllStandardOutput()).toLower();
+        m_isWifi = type.contains("wifi");
+    }
+
+    quint64 readSysStat(const QString &stat) {
+        QFile file(QString("/sys/class/net/%1/statistics/%2").arg(m_iface, stat));
+        if (file.open(QIODevice::ReadOnly)) {
+            return file.readAll().trimmed().toULongLong();
+        }
+        return 0;
+    }
+
+    void updateMetrics() {
+        // Fetch Live Connection State from NetworkManager
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "GENERAL.STATE", "dev", "show", m_iface});
+        proc.waitForFinished();
+        QString stateStr = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        
+        bool isConnected = false;
+        if (stateStr.contains("(")) {
+            int start = stateStr.indexOf('(') + 1;
+            int end = stateStr.indexOf(')');
+            if (start > 0 && end > start) {
+                QString rawStatus = stateStr.mid(start, end - start);
+                if (!rawStatus.isEmpty()) {
+                    isConnected = (rawStatus == "connected");
+                    rawStatus[0] = rawStatus[0].toUpper();
+                    m_statusLabel->setText(rawStatus);
+                }
+            }
+        }
+
+        // Increment Duration Counter if Connected
+        if (isConnected) {
+            m_secondsConnected++;
+            int hrs = m_secondsConnected / 3600;
+            int mins = (m_secondsConnected % 3600) / 60;
+            int secs = m_secondsConnected % 60;
+            m_durationLabel->setText(QString("%1:%2:%3")
+                .arg(hrs, 2, 10, QChar('0'))
+                .arg(mins, 2, 10, QChar('0'))
+                .arg(secs, 2, 10, QChar('0')));
+        } else {
+            m_durationLabel->setText("00:00:00");
+        }
+
+        // Activity Packet Counters
+        quint64 txPackets = readSysStat("tx_packets");
+        quint64 rxPackets = readSysStat("rx_packets");
+        m_sentLabel->setText(QString::number(txPackets));
+        m_recvLabel->setText(QString::number(rxPackets));
+
+        // Speed Reading
+        QFile speedFile(QString("/sys/class/net/%1/speed").arg(m_iface));
+        if (speedFile.open(QIODevice::ReadOnly)) {
+            int spd = speedFile.readAll().trimmed().toInt();
+            if (spd > 0) m_speedLabel->setText(QString("%1.0 Mbps").arg(spd));
+        }
+
+        // Wi-Fi Specific Updates
+        if (m_isWifi) {
+            proc.start("nmcli", {"-t", "-f", "ACTIVE,SSID,SIGNAL", "dev", "wifi"});
+            proc.waitForFinished();
+            QString output = QString::fromUtf8(proc.readAllStandardOutput());
+            for (const QString &line : output.split('\n', Qt::SkipEmptyParts)) {
+                if (line.startsWith("yes:")) {
+                    QStringList parts = line.split(':');
+                    if (parts.size() >= 3) {
+                        if (m_networkLabel) m_networkLabel->setText(parts[1]);
+                        if (m_signalBar) m_signalBar->setValue(parts[2].toInt());
+                    }
+                    break;
+                }
+            }
+        }
+    }
+
+    void loadSupportData() {
+        // 1. IP & Subnet via Qt native QNetworkInterface
+        QNetworkInterface iface = QNetworkInterface::interfaceFromName(m_iface);
+        QString ipStr = "0.0.0.0";
+        QString maskStr = "0.0.0.0";
+        
+        for (const auto &entry : iface.addressEntries()) {
+            if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol) {
+                ipStr = entry.ip().toString();
+                maskStr = entry.netmask().toString();
+                break;
+            }
+        }
+        m_ipLabel->setText(ipStr);
+        m_maskLabel->setText(maskStr);
+
+        // 2. Gateway & Active Connection Name via nmcli dev show
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "IP4.GATEWAY,GENERAL.CONNECTION", "dev", "show", m_iface});
+        proc.waitForFinished();
+        QString devOutput = QString::fromUtf8(proc.readAllStandardOutput());
+
+        QString gateway = "None";
+        QString conName = "";
+
+        for (const QString &line : devOutput.split('\n', Qt::SkipEmptyParts)) {
+            if (line.startsWith("IP4.GATEWAY:")) {
+                gateway = line.mid(12).trimmed();
+            } else if (line.startsWith("GENERAL.CONNECTION:")) {
+                conName = line.mid(19).trimmed();
+            }
+        }
+        m_gatewayLabel->setText(gateway.isEmpty() ? "None" : gateway);
+
+        // 3. Method (DHCP vs Manual) via nmcli con show
+        if (!conName.isEmpty() && conName != "--") {
+            proc.start("nmcli", {"-t", "-f", "ipv4.method", "con", "show", conName});
+            proc.waitForFinished();
+            QString methodOutput = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+            if (methodOutput.startsWith("ipv4.method:")) {
+                methodOutput = methodOutput.mid(12).trimmed();
+            }
+            m_addrTypeLabel->setText(methodOutput == "manual" ? "Manually Configured" : "Assigned by DHCP");
+        } else {
+            m_addrTypeLabel->setText("Assigned by DHCP");
+        }
+    }
+
+    void showDetailsDialog() {
+        QNetworkInterface iface = QNetworkInterface::interfaceFromName(m_iface);
+        QString details = QString("Physical Address (MAC):\t%1\n"
+                                  "IP Address:\t\t%2\n"
+                                  "Subnet Mask:\t\t%3\n"
+                                  "Default Gateway:\t%4")
+                                  .arg(iface.hardwareAddress(), m_ipLabel->text(), m_maskLabel->text(), m_gatewayLabel->text());
+
+        QMessageBox::information(this, "Network Connection Details", details);
+    }
+};
+
+// Main Network Connections Window
+class NetworkConnectionsPage : public QWidget {
+    Q_OBJECT
+public:
+    NetworkConnectionsPage(QScrollArea *sidebar, QWidget *parent = nullptr) : QWidget(parent) {
+        // setWindowTitle("Network Connections");
+        // resize(520, 360);
+
+        // auto *layout = new QVBoxLayout(this);
+        // layout->setContentsMargins(8, 8, 8, 8);
+        // Use standard Control Panel page scaffold
+        auto *contentV = Win7::pageScaffold(this, sidebar, /*bottomMargin=*/20, /*fixedWidth=*/700);
+
+        // Page title
+        contentV->addWidget(Win7::pageTitle("Network Connections"));
+        contentV->addSpacing(16);
 
         m_listWidget = new QListWidget(this);
         m_listWidget->setViewMode(QListWidget::IconMode);
@@ -687,14 +1011,35 @@ public:
         m_listWidget->setGridSize(QSize(150, 70));
         m_listWidget->setResizeMode(QListWidget::Adjust);
         m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_listWidget->setMinimumHeight(350);
+        m_listWidget->setStyleSheet("QListWidget { background: transparent; border: 1px solid #D9D9D9; }");
 
-        connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &NetworkConnectionsWindow::showContextMenu);
+        connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &NetworkConnectionsPage::showContextMenu);
         connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item){ showProperties(item); });
 
-        layout->addWidget(m_listWidget);
+        // layout->addWidget(m_listWidget);
+        contentV->addWidget(m_listWidget);
+        contentV->addStretch(1);
         refreshInterfaces();
     }
 
+        static QList<SidebarLink> sidebarLinks() {
+        return {
+            Nav::plain("Disable this network device"),
+            Nav::plain("Diagnose this connection"),
+            Nav::plain("Rename this connection"),
+            Nav::plain("View status of this connection"),
+            Nav::plain("Change settings of this connection"),
+        };
+    }
+
+    static QList<SidebarLink> sidebarSeeAlso() {
+        return {
+            Nav::to("Network and Sharing Center", PageId::NetworkSharing),
+            Nav::plain("Internet Options"),
+            Nav::to("Linux Firewall", PageId::Firewall),
+        };
+    }
 private:
     QListWidget *m_listWidget;
 
@@ -715,22 +1060,30 @@ private:
             QString dev = parts[0];
             QString type = parts[1];
             QString state = parts[2];
-            QString connName = (parts.size() > 3) ? parts[3] : "";
             
             if (type == "loopback") continue;
             
-            QString iconName = "network-wired"; // Default
-            
-            // Determine Icon based on Type and State
-            if (type == "ethernet") {
-                if (state == "connected") iconName = "network-wired";
+            QString iconName = "nm-device-wired";
+
+            // Device Name Overrides
+            if (dev.startsWith("br-")) {
+                iconName = "bluetooth";
+            } else if (dev.startsWith("veth") || dev.startsWith("vnet")) {
+                // Virtual ethernet interfaces map to wired instead of wifi
+                if (state == "connected") iconName = "nm-device-wired";
+                // else if (state == "unavailable") iconName = "network-unavailable";
+                // else iconName = "gnome-netstatus-disconn";
+                
+                else iconName = "network-unavailable";
+            } else if (type == "ethernet") {
+                if (state == "connected") iconName = "nm-device-wired";
                 else if (state == "unavailable") iconName = "network-unavailable";
                 else iconName = "network-offline";
-            } else if (type == "wifi") {
+            } else if ((type == "wifi") && dev.startsWith("w")) {
                 if (state == "connected") iconName = "network-wireless-signal-excellent";
                 else if (state == "disconnected") iconName = "network-wireless-disconnected";
                 else iconName = "network-wireless-offline";
-            } else if (type == "bt") {
+            } else if (type == "bt" || type == "bluetooth") {
                 iconName = "bluetooth";
             } else if (type == "tun" || type == "wireguard") {
                 iconName = "network-vpn";
@@ -746,8 +1099,13 @@ private:
             QString displayText = QString("%1\n%2").arg(dev, state);
             auto *item = new QListWidgetItem(displayText, m_listWidget);
             
-            // Load icon from system theme, fallback to a standard Qt icon
-            item->setIcon(QIcon::fromTheme(iconName, style()->standardIcon(QStyle::SP_ComputerIcon)));
+            // Load standard icon directly without symbolic override
+            QIcon devIcon = QIcon::fromTheme(iconName);
+            if (devIcon.isNull()) {
+                devIcon = style()->standardIcon(QStyle::SP_ComputerIcon);
+            }
+            
+            item->setIcon(devIcon);
             item->setData(Qt::UserRole, dev);
         }
     }
@@ -787,21 +1145,7 @@ private:
     }
 
     void showStatus(const QString &ifaceName) {
-        QNetworkInterface interface = QNetworkInterface::interfaceFromName(ifaceName);
-        QDialog dlg(this);
-        dlg.setWindowTitle(QString("Status: %1").arg(interface.humanReadableName()));
-        dlg.resize(300, 220);
-
-        auto *layout = new QFormLayout(&dlg);
-        layout->addRow("Interface:", new QLabel(interface.name(), &dlg));
-        layout->addRow("MAC Address:", new QLabel(interface.hardwareAddress(), &dlg));
-        
-        QString ipAddresses;
-        for (const auto &entry : interface.addressEntries()) {
-            ipAddresses += entry.ip().toString() + "\n";
-        }
-        layout->addRow("IP Address:", new QLabel(ipAddresses.trimmed(), &dlg));
-
+        ConnectionStatusDialog dlg(ifaceName, this);
         dlg.exec();
     }
 

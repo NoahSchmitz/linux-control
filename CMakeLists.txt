@@ -16,7 +16,7 @@ add_executable(controlpanel
     src/main.cpp
     src/ui/LinkLabel.h
     src/ui/MainWindow.cpp
-    src/ui/NetworkConnectionsWindow.h
+    src/ui/NetworkConnectionsPage.h
     src/ui/PageRegistry.cpp
     src/ui/CategoryWidget.cpp
     src/ui/Win7Ui.h
