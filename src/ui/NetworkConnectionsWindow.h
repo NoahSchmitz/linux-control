@@ -19,6 +19,10 @@
 #include <QTabWidget>
 #include <QButtonGroup>
 #include <QMap>
+#include <QSpinBox>
+#include <QCheckBox>
+#include <QRegularExpression>
+
 
 // Dialog replicating the "Internet Protocol Version 4 (TCP/IPv4) Properties" window
 class IPv4PropertiesDialog : public QDialog {
@@ -149,7 +153,12 @@ private:
         QProcess proc;
         proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_iface});
         proc.waitForFinished();
+        
+        // Read the output and strip the key name from the terse output
         QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (conName.startsWith("GENERAL.CONNECTION:")) {
+            conName = conName.mid(QString("GENERAL.CONNECTION:").length());
+        }
         
         if (conName.isEmpty()) {
             m_dhcpRadio->setChecked(true);
@@ -209,7 +218,12 @@ private:
         QProcess proc;
         proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_iface});
         proc.waitForFinished();
+        
+        // Read the output and strip the key name from the terse output
         QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (conName.startsWith("GENERAL.CONNECTION:")) {
+            conName = conName.mid(QString("GENERAL.CONNECTION:").length());
+        }
         
         if (conName.isEmpty()) {
             accept();
@@ -246,6 +260,255 @@ private:
     }
 };
 
+class IPv6PropertiesDialog : public QDialog {
+public:
+    IPv6PropertiesDialog(const QString &ifaceName, QWidget *parent = nullptr) 
+        : QDialog(parent), m_iface(ifaceName) {
+        setWindowTitle("Internet Protocol Version 6 (TCP/IPv6) Properties");
+        resize(420, 480);
+
+        auto *mainLayout = new QVBoxLayout(this);
+        auto *generalGroup = new QGroupBox("General", this);
+        auto *generalLayout = new QVBoxLayout(generalGroup);
+
+        m_dhcpRadio = new QRadioButton("Obtain an IPv6 address automatically", this);
+        m_staticRadio = new QRadioButton("Use the following IPv6 address:", this);
+        
+        auto *ipGroup = new QButtonGroup(this);
+        ipGroup->addButton(m_dhcpRadio);
+        ipGroup->addButton(m_staticRadio);
+
+        generalLayout->addWidget(m_dhcpRadio);
+        generalLayout->addWidget(m_staticRadio);
+
+        auto *ipLayout = new QFormLayout();
+        ipLayout->setContentsMargins(20, 0, 0, 0);
+        m_ipEdit = new QLineEdit(this);
+        m_prefixEdit = new QLineEdit(this); // IPv6 uses prefix length (e.g., 64)
+        m_gatewayEdit = new QLineEdit(this);
+        ipLayout->addRow("IPv6 address:", m_ipEdit);
+        ipLayout->addRow("Subnet prefix length:", m_prefixEdit);
+        ipLayout->addRow("Default gateway:", m_gatewayEdit);
+        generalLayout->addLayout(ipLayout);
+        generalLayout->addSpacing(15);
+
+        m_dnsDhcpRadio = new QRadioButton("Obtain DNS server address automatically", this);
+        m_dnsStaticRadio = new QRadioButton("Use the following DNS server addresses:", this);
+        
+        auto *dnsGroup = new QButtonGroup(this);
+        dnsGroup->addButton(m_dnsDhcpRadio);
+        dnsGroup->addButton(m_dnsStaticRadio);
+
+        generalLayout->addWidget(m_dnsDhcpRadio);
+        generalLayout->addWidget(m_dnsStaticRadio);
+
+        auto *dnsLayout = new QFormLayout();
+        dnsLayout->setContentsMargins(20, 0, 0, 0);
+        m_prefDnsEdit = new QLineEdit(this);
+        m_altDnsEdit = new QLineEdit(this);
+        dnsLayout->addRow("Preferred DNS server:", m_prefDnsEdit);
+        dnsLayout->addRow("Alternate DNS server:", m_altDnsEdit);
+        generalLayout->addLayout(dnsLayout);
+        
+        mainLayout->addWidget(generalGroup);
+
+        auto *buttonBox = new QHBoxLayout();
+        buttonBox->addStretch();
+        auto *okBtn = new QPushButton("OK", this);
+        auto *cancelBtn = new QPushButton("Cancel", this);
+        buttonBox->addWidget(okBtn);
+        buttonBox->addWidget(cancelBtn);
+        mainLayout->addLayout(buttonBox);
+
+        connect(m_dhcpRadio, &QRadioButton::toggled, this, &IPv6PropertiesDialog::toggleFields);
+        connect(m_dnsDhcpRadio, &QRadioButton::toggled, this, &IPv6PropertiesDialog::toggleFields);
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        connect(okBtn, &QPushButton::clicked, this, &IPv6PropertiesDialog::applySettings);
+
+        loadCurrentSettings();
+    }
+
+private:
+    QString m_iface;
+    QRadioButton *m_dhcpRadio, *m_staticRadio, *m_dnsDhcpRadio, *m_dnsStaticRadio;
+    QLineEdit *m_ipEdit, *m_prefixEdit, *m_gatewayEdit, *m_prefDnsEdit, *m_altDnsEdit;
+
+    void toggleFields() {
+        bool ipStatic = m_staticRadio->isChecked();
+        m_ipEdit->setEnabled(ipStatic);
+        m_prefixEdit->setEnabled(ipStatic);
+        m_gatewayEdit->setEnabled(ipStatic);
+
+        bool dnsStatic = m_dnsStaticRadio->isChecked();
+        m_prefDnsEdit->setEnabled(dnsStatic);
+        m_altDnsEdit->setEnabled(dnsStatic);
+    }
+
+    QString getConnectionName() {
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_iface});
+        proc.waitForFinished();
+        QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (conName.startsWith("GENERAL.CONNECTION:")) {
+            return conName.mid(19); // 19 is length of "GENERAL.CONNECTION:"
+        }
+        return conName;
+    }
+
+    void loadCurrentSettings() {
+        QString conName = getConnectionName();
+        if (conName.isEmpty()) {
+            m_dhcpRadio->setChecked(true);
+            m_dnsDhcpRadio->setChecked(true);
+            return;
+        }
+
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "ipv6.method,ipv6.addresses,ipv6.gateway,ipv6.dns", "con", "show", conName});
+        proc.waitForFinished();
+        QString output = QString::fromUtf8(proc.readAllStandardOutput());
+        
+        QMap<QString, QString> settings;
+        for (const QString &line : output.split('\n', Qt::SkipEmptyParts)) {
+            int colonIdx = line.indexOf(':');
+            if (colonIdx != -1) settings[line.left(colonIdx)] = line.mid(colonIdx + 1).trimmed();
+        }
+
+        QString method = settings["ipv6.method"];
+        if (method == "manual") {
+            m_staticRadio->setChecked(true);
+            QString addr = settings["ipv6.addresses"].split(',').first().trimmed();
+            if (addr.contains('/')) {
+                QStringList parts = addr.split('/');
+                m_ipEdit->setText(parts[0]);
+                m_prefixEdit->setText(parts[1]);
+            } else {
+                m_ipEdit->setText(addr);
+                m_prefixEdit->setText("64");
+            }
+            m_gatewayEdit->setText(settings["ipv6.gateway"]);
+        } else {
+            m_dhcpRadio->setChecked(true);
+        }
+
+        QString dns = settings["ipv6.dns"];
+        if (!dns.isEmpty() && (method == "manual" || method == "auto")) {
+            m_dnsStaticRadio->setChecked(true);
+            QStringList dnsList = dns.split(',');
+            if (dnsList.size() > 0) m_prefDnsEdit->setText(dnsList[0].trimmed());
+            if (dnsList.size() > 1) m_altDnsEdit->setText(dnsList[1].trimmed());
+        } else {
+            m_dnsDhcpRadio->setChecked(true);
+        }
+        toggleFields();
+    }
+
+    void applySettings() {
+        QString conName = getConnectionName();
+        if (conName.isEmpty()) { accept(); return; }
+
+        QStringList args;
+        args << "nmcli" << "con" << "modify" << conName;
+
+        if (m_dhcpRadio->isChecked()) {
+            args << "ipv6.method" << "auto" << "ipv6.addresses" << "" << "ipv6.gateway" << "";
+        } else {
+            QString prefix = m_prefixEdit->text().isEmpty() ? "64" : m_prefixEdit->text();
+            QString ipCidr = QString("%1/%2").arg(m_ipEdit->text(), prefix);
+            args << "ipv6.method" << "manual" << "ipv6.addresses" << ipCidr << "ipv6.gateway" << m_gatewayEdit->text();
+        }
+
+        if (m_dnsDhcpRadio->isChecked()) {
+            args << "ipv6.dns" << "" << "ipv6.ignore-auto-dns" << "no";
+        } else {
+            QStringList dnsList;
+            if (!m_prefDnsEdit->text().isEmpty()) dnsList << m_prefDnsEdit->text();
+            if (!m_altDnsEdit->text().isEmpty()) dnsList << m_altDnsEdit->text();
+            args << "ipv6.dns" << dnsList.join(",") << "ipv6.ignore-auto-dns" << "yes";
+        }
+
+        QProcess::execute("pkexec", args);
+        QProcess::execute("pkexec", {"nmcli", "con", "up", conName});
+        accept();
+    }
+};
+
+class QoSPropertiesDialog : public QDialog {
+public:
+    QoSPropertiesDialog(const QString &ifaceName, QWidget *parent = nullptr) 
+        : QDialog(parent), m_iface(ifaceName) {
+        setWindowTitle("QoS Packet Scheduler Properties");
+        resize(350, 150);
+
+        auto *layout = new QVBoxLayout(this);
+        m_enableCb = new QCheckBox("Enable Bandwidth Limiting (TBF)", this);
+        layout->addWidget(m_enableCb);
+
+        auto *form = new QFormLayout();
+        m_rateSpinBox = new QSpinBox(this);
+        m_rateSpinBox->setRange(1, 10000);
+        m_rateSpinBox->setSuffix(" Mbit/s");
+        form->addRow("Maximum Egress Rate:", m_rateSpinBox);
+        layout->addLayout(form);
+        layout->addStretch();
+
+        auto *btns = new QHBoxLayout();
+        btns->addStretch();
+        auto *okBtn = new QPushButton("OK", this);
+        auto *cancelBtn = new QPushButton("Cancel", this);
+        btns->addWidget(okBtn);
+        btns->addWidget(cancelBtn);
+        layout->addLayout(btns);
+
+        connect(m_enableCb, &QCheckBox::toggled, m_rateSpinBox, &QWidget::setEnabled);
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        connect(okBtn, &QPushButton::clicked, this, &QoSPropertiesDialog::applyQos);
+
+        loadQos();
+    }
+
+private:
+    QString m_iface;
+    QCheckBox *m_enableCb;
+    QSpinBox *m_rateSpinBox;
+
+    void loadQos() {
+        QProcess proc;
+        proc.start("tc", {"qdisc", "show", "dev", m_iface});
+        proc.waitForFinished();
+        QString output = QString::fromUtf8(proc.readAllStandardOutput());
+
+        if (output.contains("qdisc tbf")) {
+            m_enableCb->setChecked(true);
+            m_rateSpinBox->setEnabled(true);
+            
+            // Qt 6 regular expression matching
+            QRegularExpression rx(R"(rate\s+(\d+)Mbit)");
+            QRegularExpressionMatch match = rx.match(output);
+            if (match.hasMatch()) {
+                m_rateSpinBox->setValue(match.captured(1).toInt());
+            }
+        } else {
+            m_enableCb->setChecked(false);
+            m_rateSpinBox->setEnabled(false);
+            m_rateSpinBox->setValue(100);
+        }
+    }
+
+    void applyQos() {
+        // Clear existing root qdisc
+        QProcess::execute("pkexec", {"tc", "qdisc", "del", "dev", m_iface, "root"});
+
+        if (m_enableCb->isChecked()) {
+            QString rate = QString("%1mbit").arg(m_rateSpinBox->value());
+            // Apply new TBF rule (burst and latency are standard defaults for general limiting)
+            QProcess::execute("pkexec", {"tc", "qdisc", "add", "dev", m_iface, "root", "tbf", 
+                                         "rate", rate, "burst", "32kbit", "latency", "400ms"});
+        }
+        accept();
+    }
+};
+
 // Dialog replicating the "Ethernet Properties" / "Networking" tab window
 class AdapterPropertiesDialog : public QDialog {
 public:
@@ -258,7 +521,7 @@ public:
         
         auto *tabWidget = new QTabWidget(this);
         auto *netTab = new QWidget(tabWidget);
-        auto *netLayout = new QVBoxLayout(netTab);
+        auto *netLayout = new QVBoxLayout();
 
         netLayout->addWidget(new QLabel("Connect using:", netTab));
         
@@ -272,31 +535,33 @@ public:
         netLayout->addLayout(adapterRow);
 
         netLayout->addSpacing(10);
-        netLayout->addWidget(new QLabel("This connection uses the following items:", netTab));
+        netLayout->addWidget(new QLabel("This connection uses the following items:"));
 
-        m_itemsList = new QListWidget(netTab);
-        addListItem("Client for Microsoft Networks");
-        addListItem("File and Printer Sharing for Microsoft Networks");
+        m_itemsList = new QListWidget(this);
+
         addListItem("QoS Packet Scheduler");
         addListItem("Internet Protocol Version 4 (TCP/IPv4)");
-        addListItem("Microsoft Network Adapter Multiplexor Protocol", false);
-        addListItem("Microsoft LLDP Protocol Driver");
         addListItem("Internet Protocol Version 6 (TCP/IPv6)");
+        
+        // Load actual LLDP state from NetworkManager
+        bool lldpEnabled = getLldpState();
+        addListItem("LLDP Protocol Driver", lldpEnabled);
+        
         netLayout->addWidget(m_itemsList);
 
         auto *listBtns = new QHBoxLayout();
-        auto *installBtn = new QPushButton("Install...", netTab);
-        auto *uninstallBtn = new QPushButton("Uninstall", netTab);
-        m_propsBtn = new QPushButton("Properties", netTab);
+        // auto *installBtn = new QPushButton("Install...", netTab);
+        // auto *uninstallBtn = new QPushButton("Uninstall", netTab);
+        m_propsBtn = new QPushButton("Properties", this);
         m_propsBtn->setEnabled(false); 
 
-        listBtns->addWidget(installBtn);
-        listBtns->addWidget(uninstallBtn);
+        // listBtns->addWidget(installBtn);
+        // listBtns->addWidget(uninstallBtn);
         listBtns->addStretch();
         listBtns->addWidget(m_propsBtn);
         netLayout->addLayout(listBtns);
 
-        auto *descGroup = new QGroupBox("Description", netTab);
+        auto *descGroup = new QGroupBox("Description", this);
         auto *descLayout = new QVBoxLayout(descGroup);
         m_descLabel = new QLabel("Select an item to see its description.", descGroup);
         m_descLabel->setWordWrap(true);
@@ -305,9 +570,7 @@ public:
         descLayout->addWidget(m_descLabel);
         netLayout->addWidget(descGroup);
 
-        tabWidget->addTab(netTab, "Networking");
-        tabWidget->addTab(new QWidget(), "Sharing");
-        mainLayout->addWidget(tabWidget);
+        mainLayout->addLayout(netLayout);
 
         auto *bottomBtns = new QHBoxLayout();
         bottomBtns->addStretch();
@@ -320,7 +583,7 @@ public:
         connect(m_itemsList, &QListWidget::itemSelectionChanged, this, &AdapterPropertiesDialog::onSelectionChanged);
         connect(m_propsBtn, &QPushButton::clicked, this, &AdapterPropertiesDialog::openItemProperties);
         connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
-        connect(okBtn, &QPushButton::clicked, this, &QDialog::accept);
+        connect(okBtn, &QPushButton::clicked, this, &AdapterPropertiesDialog::applySettings);
     }
 
 private:
@@ -335,17 +598,38 @@ private:
         item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
     }
 
+    bool getLldpState() {
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_ifaceName});
+        proc.waitForFinished();
+        QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (conName.startsWith("GENERAL.CONNECTION:")) conName = conName.mid(19);
+
+        if (conName.isEmpty()) return false;
+
+        proc.start("nmcli", {"-t", "-f", "connection.lldp", "con", "show", conName});
+        proc.waitForFinished();
+        QString val = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        
+        // Returns true if value is 1 (rx), 2 (tx), or 3 (rx/tx)
+        return val.contains(QRegularExpression("[123]"));
+    }
+
     void onSelectionChanged() {
         auto items = m_itemsList->selectedItems();
         if (items.isEmpty()) return;
         
         QString text = items.first()->text();
+        m_propsBtn->setEnabled(text != "LLDP Protocol Driver"); // LLDP is just a toggle
+
         if (text == "Internet Protocol Version 4 (TCP/IPv4)") {
-            m_propsBtn->setEnabled(true);
-            m_descLabel->setText("Transmission Control Protocol/Internet Protocol. The default wide area network protocol that provides communication across diverse interconnected networks.");
-        } else {
-            m_propsBtn->setEnabled(false);
-            m_descLabel->setText("Description for " + text + " is not available.");
+            m_descLabel->setText("Transmission Control Protocol/Internet Protocol. The default wide area network protocol.");
+        } else if (text == "Internet Protocol Version 6 (TCP/IPv6)") {
+            m_descLabel->setText("TCP/IPv6. The latest version of the internet protocol that provides communication across diverse interconnected networks.");
+        } else if (text == "QoS Packet Scheduler") {
+            m_descLabel->setText("Quality of Service Packet Scheduler. This component provides network traffic rate limiting (via Linux tc).");
+        } else if (text == "LLDP Protocol Driver") {
+            m_descLabel->setText("Link Layer Discovery Protocol. Allows the device to advertise its identity and capabilities on the local network.");
         }
     }
 
@@ -353,14 +637,41 @@ private:
         auto items = m_itemsList->selectedItems();
         if (items.isEmpty()) return;
 
-        if (items.first()->text() == "Internet Protocol Version 4 (TCP/IPv4)") {
+        QString text = items.first()->text();
+        if (text == "Internet Protocol Version 4 (TCP/IPv4)") {
             IPv4PropertiesDialog dlg(m_ifaceName, this);
+            dlg.exec();
+        } else if (text == "Internet Protocol Version 6 (TCP/IPv6)") {
+            IPv6PropertiesDialog dlg(m_ifaceName, this);
+            dlg.exec();
+        } else if (text == "QoS Packet Scheduler") {
+            QoSPropertiesDialog dlg(m_ifaceName, this);
             dlg.exec();
         }
     }
-};
 
+    void applySettings() {
+        // Save LLDP setting based on checkbox state
+        QListWidgetItem* lldpItem = m_itemsList->findItems("LLDP Protocol Driver", Qt::MatchExactly).first();
+        bool enableLldp = (lldpItem->checkState() == Qt::Checked);
+
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_ifaceName});
+        proc.waitForFinished();
+        QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        if (conName.startsWith("GENERAL.CONNECTION:")) conName = conName.mid(19);
+
+        if (!conName.isEmpty()) {
+            // Set LLDP to 1 (RX only, standard for endpoints) or 0 (disabled)
+            QString lldpVal = enableLldp ? "1" : "0";
+            QProcess::execute("pkexec", {"nmcli", "con", "modify", conName, "connection.lldp", lldpVal});
+            QProcess::execute("pkexec", {"nmcli", "con", "up", conName});
+        }
+        accept();
+    }
+};
 // Main Network Connections Window
+
 class NetworkConnectionsWindow : public QWidget {
 public:
     NetworkConnectionsWindow(QWidget *parent = nullptr) : QWidget(parent) {
@@ -389,27 +700,57 @@ private:
 
     void refreshInterfaces() {
         m_listWidget->clear();
-        const auto interfaces = QNetworkInterface::allInterfaces();
-        for (const auto &interface : interfaces) {
-            if (interface.flags().testFlag(QNetworkInterface::IsLoopBack))
-                continue;
+        
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device", "status"});
+        proc.waitForFinished();
+        
+        QString output = QString::fromUtf8(proc.readAllStandardOutput());
+        QStringList lines = output.split('\n', Qt::SkipEmptyParts);
+        
+        for (const QString &line : lines) {
+            QStringList parts = line.split(':');
+            if (parts.size() < 3) continue;
+            
+            QString dev = parts[0];
+            QString type = parts[1];
+            QString state = parts[2];
+            QString connName = (parts.size() > 3) ? parts[3] : "";
+            
+            if (type == "loopback") continue;
+            
+            QString iconName = "network-wired"; // Default
+            
+            // Determine Icon based on Type and State
+            if (type == "ethernet") {
+                if (state == "connected") iconName = "network-wired";
+                else if (state == "unavailable") iconName = "network-unavailable";
+                else iconName = "network-offline";
+            } else if (type == "wifi") {
+                if (state == "connected") iconName = "network-wireless-signal-excellent";
+                else if (state == "disconnected") iconName = "network-wireless-disconnected";
+                else iconName = "network-wireless-offline";
+            } else if (type == "bt") {
+                iconName = "bluetooth";
+            } else if (type == "tun" || type == "wireguard") {
+                iconName = "network-vpn";
+            }
+            
+            // Handle limited/error states
+            if (state == "connected (local only)" || state == "connected (site only)") {
+                iconName = "network-wired-activated-limited";
+            } else if (state == "failed") {
+                iconName = "network-error";
+            }
 
-            QString name = interface.humanReadableName();
-            if (name.isEmpty())
-                name = interface.name();
-
-            bool isUp = interface.flags().testFlag(QNetworkInterface::IsUp);
-            bool isRunning = interface.flags().testFlag(QNetworkInterface::IsRunning);
-
-            QString statusText = (isUp && isRunning) ? "Connected" : "Disconnected";
-            QString displayText = QString("%1\n%2").arg(name, statusText);
-
+            QString displayText = QString("%1\n%2").arg(dev, state);
             auto *item = new QListWidgetItem(displayText, m_listWidget);
-            item->setIcon(style()->standardIcon(QStyle::SP_ComputerIcon));
-            item->setData(Qt::UserRole, interface.name());
+            
+            // Load icon from system theme, fallback to a standard Qt icon
+            item->setIcon(QIcon::fromTheme(iconName, style()->standardIcon(QStyle::SP_ComputerIcon)));
+            item->setData(Qt::UserRole, dev);
         }
     }
-
     void showContextMenu(const QPoint &pos) {
         auto *item = m_listWidget->itemAt(pos);
         if (!item) return;
