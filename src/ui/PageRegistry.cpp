@@ -35,6 +35,16 @@ const QList<Entry> &table()
         { PageId::EaseOfAccess,     QStringLiteral("Ease of Access/Ease of Access Center") },
         { PageId::DevicesPrinters,  QStringLiteral("Hardware and Sound/Devices and Printers") },
         { PageId::System,           QStringLiteral("System and Security/System") },
+        // Additional subpages for full category navigation
+        { PageId::BackupAndRestore, QStringLiteral("System and Security/Backup and Restore") },
+        { PageId::BitLocker,        QStringLiteral("System and Security/BitLocker Drive Encryption") },
+        { PageId::HomeGroup,        QStringLiteral("Network and Internet/HomeGroup") },
+        { PageId::InternetOptions,  QStringLiteral("Network and Internet/Internet Options") },
+        { PageId::AutoPlay,         QStringLiteral("Hardware and Sound/AutoPlay") },
+        { PageId::DefaultPrograms,  QStringLiteral("Programs/Default Programs") },
+        { PageId::CredentialManager, QStringLiteral("User Accounts and Family Safety/Credential Manager") },
+        { PageId::FolderOptions,    QStringLiteral("Appearance and Personalization/Folder Options") },
+        { PageId::TaskbarAndStartMenu, QStringLiteral("Appearance and Personalization/Taskbar and Start Menu") },
     };
     return kEntries;
 }

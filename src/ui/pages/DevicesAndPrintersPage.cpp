@@ -3,6 +3,7 @@
 #include "IconHelper.h"
 #include "LinkLabel.h"
 #include "Win7Ui.h"
+#include "PageId.h"
 
 #include "SysfsScanner.h"
 #include "DeviceUtils.h"
@@ -366,4 +367,24 @@ void DevicesAndPrintersPage::launchAddDevice() {
         }
     }
     launchDetached(this, { "bluedevil-wizard" });  // reports "not installed"
+}
+
+// Sidebar
+QList<SidebarLink> DevicesAndPrintersPage::sidebarLinks()
+{
+    return {
+        Nav::command("Add a device", { "bluedevil-wizard" }),
+        Nav::command("Add a printer", { "system-config-printer" }),
+        Nav::command("Mouse", { "gnome-mouse-properties" }),
+        Nav::command("Device Manager", { "lshw", "-X" }),
+    };
+}
+
+QList<SidebarLink> DevicesAndPrintersPage::sidebarSeeAlso()
+{
+    return {
+        Nav::to("System", PageId::System),
+        Nav::to("Power Options", PageId::PowerOptions),
+        Nav::to("Ease of Access Center", PageId::EaseOfAccess),
+    };
 }

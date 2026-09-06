@@ -16,6 +16,7 @@ add_executable(controlpanel
     src/main.cpp
     src/ui/LinkLabel.h
     src/ui/MainWindow.cpp
+    src/ui/NetworkConnectionsWindow.h
     src/ui/PageRegistry.cpp
     src/ui/CategoryWidget.cpp
     src/ui/Win7Ui.h
@@ -33,6 +34,15 @@ add_executable(controlpanel
     src/ui/pages/UserAccountsPage.cpp
     src/ui/pages/EaseOfAccessPage.cpp
     src/ui/pages/DevicesAndPrintersPage.cpp
+    src/ui/pages/BackupAndRestorePage.cpp
+    src/ui/pages/BitLockerPage.cpp
+    src/ui/pages/HomeGroupPage.cpp
+    src/ui/pages/InternetOptionsPage.cpp
+    src/ui/pages/AutoPlayPage.cpp
+    src/ui/pages/DefaultProgramsPage.cpp
+    src/ui/pages/CredentialManagerPage.cpp
+    src/ui/pages/FolderOptionsPage.cpp
+    src/ui/pages/TaskbarAndStartMenuPage.cpp
     src/ui/dialogs/DateTimeDialog.cpp
     src/ui/dialogs/SoundDialog.cpp
     src/ui/dialogs/DevicePropertiesDialog.cpp

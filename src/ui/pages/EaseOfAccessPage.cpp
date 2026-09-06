@@ -3,6 +3,7 @@
 #include "LinkLabel.h"
 #include "IconHelper.h"
 #include "Win7Ui.h"
+#include "PageId.h"
 
 #include <QScrollArea>
 #include <QLabel>
@@ -22,7 +23,12 @@ static const QStringList kCursorTheme = { "gnome-tweaks", "--page=mouse" };
 // Sidebar
 QList<SidebarLink> EaseOfAccessPage::sidebarLinks()
 {
-    return {};
+    return {
+        Nav::command("Use the computer without a display", kAccess),
+        Nav::command("Make the computer easier to see", kMagnifier),
+        Nav::command("Use the computer without a mouse or keyboard", kAccess),
+        Nav::command("Make the mouse easier to use", kMouse),
+    };
 }
 
 QList<SidebarLink> EaseOfAccessPage::sidebarSeeAlso()

@@ -36,6 +36,16 @@ enum class PageId {
     EaseOfAccess,
     DevicesPrinters,
     System,
+    // Additional subpages for full category navigation
+    BackupAndRestore,
+    BitLocker,
+    HomeGroup,
+    InternetOptions,
+    AutoPlay,
+    DefaultPrograms,
+    CredentialManager,
+    FolderOptions,
+    TaskbarAndStartMenu,
 };
 
 // Where a sidebar link goes when it is clicked. A link can navigate to another

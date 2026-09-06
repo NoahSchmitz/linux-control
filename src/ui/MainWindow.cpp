@@ -51,6 +51,15 @@
 #include "pages/UserAccountsPage.h"
 #include "pages/EaseOfAccessPage.h"
 #include "pages/DevicesAndPrintersPage.h"
+#include "pages/BackupAndRestorePage.h"
+#include "pages/BitLockerPage.h"
+#include "pages/HomeGroupPage.h"
+#include "pages/InternetOptionsPage.h"
+#include "pages/AutoPlayPage.h"
+#include "pages/DefaultProgramsPage.h"
+#include "pages/CredentialManagerPage.h"
+#include "pages/FolderOptionsPage.h"
+#include "pages/TaskbarAndStartMenuPage.h"
 #include "dialogs/DateTimeDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
@@ -447,6 +456,16 @@ static const QString kFontsPath            = PageRegistry::pathFor(PageId::Fonts
 static const QString kUserAccountsPath     = PageRegistry::pathFor(PageId::UserAccounts);
 static const QString kEaseOfAccessPath     = PageRegistry::pathFor(PageId::EaseOfAccess);
 static const QString kDevicesPrintersPath  = PageRegistry::pathFor(PageId::DevicesPrinters);
+// Additional page paths
+static const QString kBackupAndRestorePath = PageRegistry::pathFor(PageId::BackupAndRestore);
+static const QString kBitLockerPath        = PageRegistry::pathFor(PageId::BitLocker);
+static const QString kHomeGroupPath        = PageRegistry::pathFor(PageId::HomeGroup);
+static const QString kInternetOptionsPath  = PageRegistry::pathFor(PageId::InternetOptions);
+static const QString kAutoPlayPath         = PageRegistry::pathFor(PageId::AutoPlay);
+static const QString kDefaultProgramsPath  = PageRegistry::pathFor(PageId::DefaultPrograms);
+static const QString kCredentialManagerPath= PageRegistry::pathFor(PageId::CredentialManager);
+static const QString kFolderOptionsPath    = PageRegistry::pathFor(PageId::FolderOptions);
+static const QString kTaskbarAndStartMenuPath = PageRegistry::pathFor(PageId::TaskbarAndStartMenu);
 
 // A sub-path (one containing '/') is routable only if showEntry knows how to
 // render it. Category-level paths are validated separately via detailGroupsFor.
@@ -465,6 +484,15 @@ static bool isRoutableSubPath(const QString &path)
         || path == kUserAccountsPath
         || path == kEaseOfAccessPath
         || path == kDevicesPrintersPath
+        || path == kBackupAndRestorePath
+        || path == kBitLockerPath
+        || path == kHomeGroupPath
+        || path == kInternetOptionsPath
+        || path == kAutoPlayPath
+        || path == kDefaultProgramsPath
+        || path == kCredentialManagerPath
+        || path == kFolderOptionsPath
+        || path == kTaskbarAndStartMenuPath
         || path == QStringLiteral("System and Security/System");
 }
 
@@ -644,6 +672,51 @@ void MainWindow::showEntry(const QString &entry)
         } else if (entry == kDevicesPrintersPath) {
             // A shell folder, not a Control Panel item: no left-nav sidebar.
             m_scroll->setWidget(new DevicesAndPrintersPage());
+        } else if (entry == kBackupAndRestorePath) {
+            auto *sidebar = buildSubpageSidebar(
+                BackupAndRestorePage::sidebarLinks(),
+                BackupAndRestorePage::sidebarSeeAlso());
+            m_scroll->setWidget(new BackupAndRestorePage(sidebar));
+        } else if (entry == kBitLockerPath) {
+            auto *sidebar = buildSubpageSidebar(
+                BitLockerPage::sidebarLinks(),
+                BitLockerPage::sidebarSeeAlso());
+            m_scroll->setWidget(new BitLockerPage(sidebar));
+        } else if (entry == kHomeGroupPath) {
+            auto *sidebar = buildSubpageSidebar(
+                HomeGroupPage::sidebarLinks(),
+                HomeGroupPage::sidebarSeeAlso());
+            m_scroll->setWidget(new HomeGroupPage(sidebar));
+        } else if (entry == kInternetOptionsPath) {
+            auto *sidebar = buildSubpageSidebar(
+                InternetOptionsPage::sidebarLinks(),
+                InternetOptionsPage::sidebarSeeAlso());
+            m_scroll->setWidget(new InternetOptionsPage(sidebar));
+        } else if (entry == kAutoPlayPath) {
+            auto *sidebar = buildSubpageSidebar(
+                AutoPlayPage::sidebarLinks(),
+                AutoPlayPage::sidebarSeeAlso());
+            m_scroll->setWidget(new AutoPlayPage(sidebar));
+        } else if (entry == kDefaultProgramsPath) {
+            auto *sidebar = buildSubpageSidebar(
+                DefaultProgramsPage::sidebarLinks(),
+                DefaultProgramsPage::sidebarSeeAlso());
+            m_scroll->setWidget(new DefaultProgramsPage(sidebar));
+        } else if (entry == kCredentialManagerPath) {
+            auto *sidebar = buildSubpageSidebar(
+                CredentialManagerPage::sidebarLinks(),
+                CredentialManagerPage::sidebarSeeAlso());
+            m_scroll->setWidget(new CredentialManagerPage(sidebar));
+        } else if (entry == kFolderOptionsPath) {
+            auto *sidebar = buildSubpageSidebar(
+                FolderOptionsPage::sidebarLinks(),
+                FolderOptionsPage::sidebarSeeAlso());
+            m_scroll->setWidget(new FolderOptionsPage(sidebar));
+        } else if (entry == kTaskbarAndStartMenuPath) {
+            auto *sidebar = buildSubpageSidebar(
+                TaskbarAndStartMenuPage::sidebarLinks(),
+                TaskbarAndStartMenuPage::sidebarSeeAlso());
+            m_scroll->setWidget(new TaskbarAndStartMenuPage(sidebar));
         }
     } else {
         setCrumbTrail({ entry });
@@ -776,6 +849,22 @@ QWidget *MainWindow::buildHomePage()
                     { "Change the theme",              kPersonalizationPath },
                     { "Let Linux suggest settings",    kEaseOfAccessPath },
                     { "Optimize visual display",       kEaseOfAccessPath },
+                    { "Back up your computer",         kBackupAndRestorePath },
+                    { "Restore files from backup",     kBackupAndRestorePath },
+                    { "Protect your computer",         kBitLockerPath },
+                    { "Manage BitLocker",              kBitLockerPath },
+                    { "Choose homegroup and sharing options", kHomeGroupPath },
+                    { "Set up your connection",        kInternetOptionsPath },
+                    { "AutoPlay",                      kAutoPlayPath },
+                    { "Default Programs",              kDefaultProgramsPath },
+                    { "Set your default programs",     kDefaultProgramsPath },
+                    { "Choose a default program",      kDefaultProgramsPath },
+                    { "Credential Manager",            kCredentialManagerPath },
+                    { "Manage Windows Credentials",    kCredentialManagerPath },
+                    { "Folder Options",                kFolderOptionsPath },
+                    { "Change folder and search options", kFolderOptionsPath },
+                    { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
+                    { "Change the taskbar and Start menu", kTaskbarAndStartMenuPath },
                 };
                 const auto it = knownTaskPaths.constFind(task);
                 navigateTo(it != knownTaskPaths.constEnd() ? it.value()
@@ -1195,6 +1284,15 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "User Accounts",             kUserAccountsPath },
             { "Ease of Access Center",     kEaseOfAccessPath },
             { "Devices and Printers",      kDevicesPrintersPath },
+            { "Backup and Restore",        kBackupAndRestorePath },
+            { "BitLocker Drive Encryption", kBitLockerPath },
+            { "HomeGroup",                 kHomeGroupPath },
+            { "Internet Options",          kInternetOptionsPath },
+            { "AutoPlay",                  kAutoPlayPath },
+            { "Default Programs",          kDefaultProgramsPath },
+            { "Credential Manager",        kCredentialManagerPath },
+            { "Folder Options",            kFolderOptionsPath },
+            { "Taskbar and Start Menu",    kTaskbarAndStartMenuPath },
         };
         if (knownSubpages.contains(group.title))
             m_subpageLinks.insert(title, knownSubpages.value(group.title));

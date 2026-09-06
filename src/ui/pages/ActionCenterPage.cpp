@@ -14,8 +14,6 @@
 #include <QFile>
 #include <QPushButton>
 #include <QStandardPaths>
-#include <QDBusConnection>
-#include <QDBusConnectionInterface>
 
 using Win7::ClickableWidget;
 
@@ -37,9 +35,8 @@ ActionCenterPage::AcInfo ActionCenterPage::gatherInfo()
 
     // UAC maps to polkit: administrative actions prompt for authentication when
     // a polkit authority is registered on the system bus (it always is on KDE).
-    if (auto *iface = QDBusConnection::systemBus().interface())
-        ac.uacOn = iface->isServiceRegistered(
-            QStringLiteral("org.freedesktop.PolicyKit1"));
+    // For non-KDE systems, check if pkexec exists (standard on most Linux distros)
+    ac.uacOn = !QStandardPaths::findExecutable(QStringLiteral("pkexec")).isEmpty();
 
     return ac;
 }

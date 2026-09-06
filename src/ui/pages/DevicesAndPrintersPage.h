@@ -3,10 +3,12 @@
 #include <QWidget>
 #include <QVector>
 #include <QString>
+#include <QList>
 
 #include "DeviceItem.h"
 #include "DeviceData.h"      // DeviceCategory
 #include "PrinterScanner.h"  // Printer
+#include "PageId.h"
 
 class QListWidget;
 class QLabel;
@@ -24,6 +26,9 @@ class DevicesAndPrintersPage : public QWidget {
     Q_OBJECT
 public:
     explicit DevicesAndPrintersPage(QWidget *parent = nullptr);
+
+    static QList<SidebarLink> sidebarLinks();
+    static QList<SidebarLink> sidebarSeeAlso();
 
 private:
     struct ScanResult {

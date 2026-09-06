@@ -13,9 +13,10 @@ class QScrollArea;
 // The account is read from the local passwd database (`getpwuid`) and the
 // caller's group membership (`getgrouplist`): membership of wheel/sudo maps to
 // the "Administrator" account type. The picture is the user's real avatar
-// (~/.face or the AccountsService icon). Every editing action hands off to KDE's
-// user-manager module (`kcm_users`), which already prompts for the credentials
-// needed to change a password, name, picture or account type.
+// (~/.face or the AccountsService icon). Every editing action hands off to
+// user-manager module (`gnome-system-users` or `system-config-users`), which
+// already prompts for the credentials needed to change a password, name,
+// picture or account type.
 class UserAccountsPage : public QWidget {
     Q_OBJECT
 

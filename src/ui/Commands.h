@@ -2,6 +2,8 @@
 
 #include <QString>
 #include <QStringList>
+#include <QStandardPaths>
+#include <initializer_list>
 
 // ---------------------------------------------------------------------------
 // External launchers shared by MainWindow's task links and the detail pages'
@@ -45,10 +47,17 @@ inline QStringList accessibility()
     return { "gnome-control-center", "universal-access" };
 }
 
-// User Accounts - use system user management
+// User Accounts - use system user management (gnome-system-tools equivalent)
 inline QStringList userAccounts()
 {
-    return { "system-config-users" };
+    // Try gnome-system-users first, then system-config-users as fallback
+    for (const char *cmd : { "gnome-system-users", "system-config-users" }) {
+        if (!QStandardPaths::findExecutable(cmd).isEmpty()) {
+            return { cmd };
+        }
+    }
+    // Fallback: use a simple dialog if no user manager is available
+    return { "zenity", "--window-icon=user-identity", "--info", "--text=Use your system's user management tool to change account settings." };
 }
 
 // Display - use wdisplays or xrandr
@@ -80,15 +89,12 @@ inline const QStringList deviceManagerCmd = {
     QStringLiteral("devmgmt")
 };
 
-// Desktop Gadgets links - KDE widgets
+// Desktop Gadgets links - use standard widget tools
 inline const QStringList kWidgetExplorerCmd = {
-    QStringLiteral("qdbus6"), QStringLiteral("org.kde.plasmashell"),
-    QStringLiteral("/PlasmaShell"),
-    QStringLiteral("org.kde.PlasmaShell.toggleWidgetExplorer")
+    QStringLiteral("gnome-shell-extension-prefs")
 };
 inline const QStringList kGetWidgetsCmd = {
-    QStringLiteral("knewstuff-dialog6"),
-    QStringLiteral("/usr/share/knsrcfiles/plasmoids.knsrc")
+    QStringLiteral("gnome-extensions")
 };
 
 // Font Settings - use system font settings
