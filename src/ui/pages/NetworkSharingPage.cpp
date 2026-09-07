@@ -251,8 +251,10 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
     mapRow->addStretch(1);
 
     // "See full map" link, pinned to the top-right of the map row.
-    mapRow->addWidget(Win7::bodyLabel("See full map", /*link=*/true),
-                      0, Qt::AlignTop);
+    m_fullMapLabel = Win7::bodyLabel("View full map", /*link=*/true);
+    m_fullMapLabel->setCursor(Qt::PointingHandCursor);
+    m_fullMapLabel->installEventFilter(this);
+    mapRow->addWidget(m_fullMapLabel, 0, Qt::AlignTop);
 
     contentV->addLayout(mapRow);
     contentV->addSpacing(18);
@@ -386,4 +388,26 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
             "information.");
 
     contentV->addStretch(1);
+}
+
+bool NetworkSharingPage::eventFilter(QObject *watched, QEvent *event)
+{
+    if (watched == m_fullMapLabel) {
+        // Handle Hover Underline
+        if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
+            QFont f = m_fullMapLabel->font();
+            f.setUnderline(event->type() == QEvent::Enter);
+            m_fullMapLabel->setFont(f);
+            return true;
+        }
+        // Handle Click
+        if (event->type() == QEvent::MouseButtonRelease) {
+            auto *me = static_cast<QMouseEvent *>(event);
+            if (me->button() == Qt::LeftButton) {
+                emit viewFullMapRequested();
+                return true;
+            }
+        }
+    }
+    return QWidget::eventFilter(watched, event);
 }

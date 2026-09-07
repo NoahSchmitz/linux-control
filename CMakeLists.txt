@@ -25,6 +25,7 @@ add_executable(controlpanel
     src/ui/pages/InstalledUpdatesPage.cpp
     src/ui/pages/ProgramsFeaturesPage.cpp
     src/ui/pages/NetworkSharingPage.cpp
+    src/ui/pages/NetworkMapPage.cpp
     src/ui/pages/FirewallPage.cpp
     src/ui/pages/ActionCenterPage.cpp
     src/ui/pages/PowerOptionsPage.cpp

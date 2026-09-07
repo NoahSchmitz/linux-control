@@ -63,6 +63,7 @@
 #include "pages/TaskbarAndStartMenuPage.h"
 #include "pages/NetworkConnectionsPage.h"
 #include "dialogs/DateTimeDialog.h"
+#include "pages/NetworkMapPage.h"
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -490,6 +491,7 @@ static const QString kCredentialManagerPath= PageRegistry::pathFor(PageId::Crede
 static const QString kFolderOptionsPath    = PageRegistry::pathFor(PageId::FolderOptions);
 static const QString kTaskbarAndStartMenuPath = PageRegistry::pathFor(PageId::TaskbarAndStartMenu);
 static const QString kNetworkConnectionsPath = PageRegistry::pathFor(PageId::NetworkConnections);
+static const QString kNetworkMapPath       = PageRegistry::pathFor(PageId::NetworkMap);
 
 // A sub-path (one containing '/') is routable only if showEntry knows how to
 // render it. Category-level paths are validated separately via detailGroupsFor.
@@ -518,6 +520,7 @@ static bool isRoutableSubPath(const QString &path)
         || path == kFolderOptionsPath
         || path == kTaskbarAndStartMenuPath
         || path == kNetworkConnectionsPath
+        || path == kNetworkMapPath
         || path == QStringLiteral("System and Security/System");
     // qDebug() << "isRoutableSubPath(" << path << ") =" << result;
     return result;
@@ -668,7 +671,14 @@ void MainWindow::showEntry(const QString &entry)
             auto *sidebar = buildSubpageSidebar(
                 NetworkSharingPage::sidebarLinks(),
                 NetworkSharingPage::sidebarSeeAlso());
-            m_scroll->setWidget(new NetworkSharingPage(sidebar));
+            
+            auto *page = new NetworkSharingPage(sidebar);
+            
+            // Listen for the map click and trigger navigation
+            QObject::connect(page, &NetworkSharingPage::viewFullMapRequested, this,
+                [this]() { navigateTo(kNetworkMapPath); }, Qt::QueuedConnection);
+
+            m_scroll->setWidget(page);
         } else if (entry == kFirewallPath) {
             auto *sidebar = buildSubpageSidebar(
                 FirewallPage::sidebarLinks(),
@@ -757,6 +767,8 @@ void MainWindow::showEntry(const QString &entry)
                 NetworkConnectionsPage::sidebarLinks(),
                 NetworkConnectionsPage::sidebarSeeAlso());
             m_scroll->setWidget(new NetworkConnectionsPage(sidebar));
+        } else if (entry == kNetworkMapPath) { 
+            m_scroll->setWidget(new NetworkMapPage());
         }
     } else {
         setCrumbTrail({ entry });

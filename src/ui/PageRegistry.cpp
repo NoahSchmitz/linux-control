@@ -46,6 +46,7 @@ const QList<Entry> &table()
         { PageId::FolderOptions,    QStringLiteral("Appearance and Personalization/Folder Options") },
         { PageId::TaskbarAndStartMenu, QStringLiteral("Appearance and Personalization/Taskbar and Start Menu") },
         { PageId::NetworkConnections, "Network and Internet/Network Connections" },
+        { PageId::NetworkMap,       QStringLiteral("Network and Internet/Network Map") },
     };
     return kEntries;
 }

@@ -47,6 +47,7 @@ enum class PageId {
     FolderOptions,
     TaskbarAndStartMenu,
     NetworkConnections,
+    NetworkMap,
 };
 
 // Where a sidebar link goes when it is clicked. A link can navigate to another
