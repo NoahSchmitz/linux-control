@@ -24,6 +24,7 @@
 #include <QRegularExpression>
 #include <QApplication>
 #include <QTextEdit>
+#include <QDateTime>
 
 // ==============================================================================
 // IPv4PropertiesDialog
@@ -510,7 +511,7 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     
     auto *adapterRow = new QHBoxLayout();
     auto *iconLabel = new QLabel(netTab);
-    iconLabel->setPixmap(style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(24, 24));
+    iconLabel->setPixmap(QIcon::fromTheme(QStringLiteral("audio-card"), style()->standardIcon(QStyle::SP_ComputerIcon)).pixmap(32, 32));
     adapterRow->addWidget(iconLabel);
     adapterRow->addWidget(new QLabel(hardwareName, netTab), 1);
     auto *configBtn = new QPushButton("Configure...", netTab);
@@ -522,13 +523,20 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
 
     m_itemsList = new QListWidget(netTab);
 
-    addListItem("QoS Packet Scheduler");
-    addListItem("Internet Protocol Version 4 (TCP/IPv4)");
-    addListItem("Internet Protocol Version 6 (TCP/IPv6)");
+    QIcon qosIcon = QIcon::fromTheme("system-upgrade-symbolic");
+    bool qosEnabled = getQosState();
+    addListItem("QoS Packet Scheduler", qosEnabled, qosIcon);
     
-    // Load actual LLDP state from NetworkManager
+    QIcon tcpIpIcon = QIcon::fromTheme("network-workgroup");
+    bool ipv4Enabled = getIpv4State();
+    addListItem("Internet Protocol Version 4 (TCP/IPv4)", ipv4Enabled, tcpIpIcon);
+    
+    bool ipv6Enabled = getIpv6State();
+    addListItem("Internet Protocol Version 6 (TCP/IPv6)", ipv6Enabled, tcpIpIcon);
+
+    QIcon lldpIcon = QIcon::fromTheme("network-server");
     bool lldpEnabled = getLldpState();
-    addListItem("LLDP Protocol Driver", lldpEnabled);
+    addListItem("LLDP Protocol Driver", lldpEnabled, lldpIcon);
     
     netLayout->addWidget(m_itemsList);
 
@@ -549,8 +557,9 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     descLayout->addWidget(m_descLabel);
     netLayout->addWidget(descGroup);
 
-    tabWidget->addTab(netTab, "Networking");
-    tabWidget->addTab(new QWidget(tabWidget), "Sharing");
+    tabWidget->addTab(netTab, "General");
+    tabWidget->addTab(new QWidget(tabWidget), "Authentication");
+    tabWidget->addTab(new QWidget(tabWidget), "Advanced");
     mainLayout->addWidget(tabWidget);
 
     auto *bottomBtns = new QHBoxLayout();
@@ -567,10 +576,14 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     connect(okBtn, &QPushButton::clicked, this, &AdapterPropertiesDialog::applySettings);
 }
 
-void AdapterPropertiesDialog::addListItem(const QString &text, bool checked) {
+void AdapterPropertiesDialog::addListItem(const QString &text, bool checked, const QIcon &icon)
+{
     auto *item = new QListWidgetItem(text, m_itemsList);
     item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
     item->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
+    if (!icon.isNull()) {
+        item->setIcon(icon);
+    }
 }
 
 bool AdapterPropertiesDialog::getLldpState() {
@@ -588,6 +601,49 @@ bool AdapterPropertiesDialog::getLldpState() {
 
     // Returns true if value is 1 (rx), 2 (tx), or 3 (rx/tx)
     return val.contains(QRegularExpression("[123]"));
+}
+
+bool AdapterPropertiesDialog::getQosState() {
+    QProcess proc;
+    proc.start("tc", {"qdisc", "show", "dev", m_ifaceName});
+    proc.waitForFinished();
+    QString output = QString::fromUtf8(proc.readAllStandardOutput());
+    
+    // If a TBF rule exists on this interface, QoS limiting is enabled
+    return output.contains("qdisc tbf");
+}
+
+bool AdapterPropertiesDialog::getIpv4State() {
+    QProcess proc;
+    proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_ifaceName});
+    proc.waitForFinished();
+    QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    if (conName.startsWith("GENERAL.CONNECTION:")) conName = conName.mid(19);
+    if (conName.isEmpty()) return false;
+
+    proc.start("nmcli", {"-t", "-f", "ipv4.method", "con", "show", conName});
+    proc.waitForFinished();
+    QString val = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    if (val.startsWith("ipv4.method:")) val = val.mid(12);
+    
+    return val != "disabled";
+}
+
+bool AdapterPropertiesDialog::getIpv6State() {
+    QProcess proc;
+    proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_ifaceName});
+    proc.waitForFinished();
+    QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    if (conName.startsWith("GENERAL.CONNECTION:")) conName = conName.mid(19);
+    if (conName.isEmpty()) return false;
+
+    proc.start("nmcli", {"-t", "-f", "ipv6.method", "con", "show", conName});
+    proc.waitForFinished();
+    QString val = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    if (val.startsWith("ipv6.method:")) val = val.mid(12);
+    
+    // IPv6 can be "ignore" or "disabled" when turned off
+    return (val != "ignore" && val != "disabled");
 }
 
 void AdapterPropertiesDialog::onSelectionChanged() {
@@ -700,14 +756,14 @@ ConnectionStatusDialog::ConnectionStatusDialog(const QString &ifaceName, QWidget
 
     auto *headerLayout = new QHBoxLayout();
     auto *iconLabel = new QLabel(actGroup);
-    iconLabel->setPixmap(style()->standardIcon(QStyle::SP_ComputerIcon).pixmap(32, 32));
+    iconLabel->setPixmap(QIcon::fromTheme(QStringLiteral("network-workgroup"), style()->standardIcon(QStyle::SP_ComputerIcon)).pixmap(32, 32));
     
     headerLayout->addStretch();
-    headerLayout->addWidget(new QLabel("Sent", actGroup));
+    headerLayout->addWidget(new QLabel("Sent ―", actGroup));
     headerLayout->addSpacing(15);
     headerLayout->addWidget(iconLabel);
     headerLayout->addSpacing(15);
-    headerLayout->addWidget(new QLabel("Received", actGroup));
+    headerLayout->addWidget(new QLabel("― Received", actGroup));
     headerLayout->addStretch();
 
     actLayout->addLayout(headerLayout);
@@ -734,7 +790,7 @@ ConnectionStatusDialog::ConnectionStatusDialog(const QString &ifaceName, QWidget
     auto *supportTab = new QWidget(tabWidget);
     auto *suppLayout = new QVBoxLayout(supportTab);
 
-    auto *suppGroup = new QGroupBox("Internet Protocol (TCP/IP)", supportTab);
+    auto *suppGroup = new QGroupBox("Connection status", supportTab);
     auto *suppForm = new QFormLayout(suppGroup);
 
     m_addrTypeLabel = new QLabel("Assigned by DHCP", suppGroup);
@@ -795,6 +851,35 @@ ConnectionStatusDialog::ConnectionStatusDialog(const QString &ifaceName, QWidget
     // Timer for Live Refresh
     m_timer = new QTimer(this);
     connect(m_timer, &QTimer::timeout, this, &ConnectionStatusDialog::updateMetrics);
+
+    // Fetch the actual connection uptime from NetworkManager
+    QProcess proc;
+    proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_iface});
+    proc.waitForFinished();
+    QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+    
+    if (conName.startsWith("GENERAL.CONNECTION:")) {
+        conName = conName.mid(19).trimmed();
+    }
+
+    if (!conName.isEmpty() && conName != "--") {
+        proc.start("nmcli", {"-t", "-f", "connection.timestamp", "con", "show", conName});
+        proc.waitForFinished();
+        QString tsOutput = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        
+        if (tsOutput.startsWith("connection.timestamp:")) {
+            tsOutput = tsOutput.mid(21).trimmed();
+        }
+        
+        qint64 ts = tsOutput.toLongLong();
+        if (ts > 0) {
+            qint64 now = QDateTime::currentSecsSinceEpoch();
+            if (now >= ts) {
+                m_secondsConnected = now - ts;
+            }
+        }
+    }
+
     m_timer->start(1000);
 
     loadSupportData();
@@ -847,10 +932,11 @@ void ConnectionStatusDialog::updateMetrics() {
             .arg(mins, 2, 10, QChar('0'))
             .arg(secs, 2, 10, QChar('0')));
     } else {
+        m_secondsConnected = 0;
         m_durationLabel->setText("00:00:00");
     }
 
-// Activity Packet Counters
+    // Activity Packet Counters
     quint64 txPackets = readSysStat("tx_packets");
     quint64 rxPackets = readSysStat("rx_packets");
     m_sentLabel->setText(QString::number(txPackets));

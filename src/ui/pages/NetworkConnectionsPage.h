@@ -94,8 +94,11 @@ private:
     QPushButton *m_propsBtn;
     QLabel *m_descLabel;
 
-    void addListItem(const QString &text, bool checked = true);
+    void addListItem(const QString &text, bool checked = true, const QIcon &icon = QIcon());
     bool getLldpState();
+    bool getQosState();
+    bool getIpv4State();
+    bool getIpv6State();
     void onSelectionChanged();
     void openItemProperties();
     void applySettings();

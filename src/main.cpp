@@ -93,6 +93,18 @@ int main(int argc, char *argv[]) {
     app.setApplicationName("controlpanel");
     // No setApplicationDisplayName: Qt appends it to every window/dialog title.
     app.setWindowIcon(themeIcon({"preferences-system"}));
+    // app.setStyleSheet("QMainWindow, QDialog, QPushButton { background-color: #c0c0c0;}");
+    // Get the current application-wide palette
+    QPalette palette = QApplication::palette();
+
+    // QPalette::Window controls the main background color (QMainWindow, QDialog, etc.)
+    palette.setColor(QPalette::Window, QColor("#c0c0c0"));
+
+    // QPalette::Button controls the background color of interactive elements (QTabBar, QPushButton)
+    palette.setColor(QPalette::Button, QColor("#c0c0c0"));
+
+    // Apply the modified palette back to the application
+    QApplication::setPalette(palette);
 
     new ScrollBarUnstyler(&app);   // native scroll bars; owned by the app
 
