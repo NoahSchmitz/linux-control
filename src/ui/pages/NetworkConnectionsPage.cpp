@@ -23,6 +23,7 @@
 #include <QCheckBox>
 #include <QRegularExpression>
 #include <QApplication>
+#include <QTextEdit>
 
 // ==============================================================================
 // IPv4PropertiesDialog
@@ -927,13 +928,107 @@ void ConnectionStatusDialog::loadSupportData() {
 
 void ConnectionStatusDialog::showDetailsDialog() {
     QNetworkInterface iface = QNetworkInterface::interfaceFromName(m_iface);
-    QString details = QString("Physical Address (MAC):\t%1\n"
-                              "IP Address:\t\t%2\n"
-                              "Subnet Mask:\t\t%3\n"
-                              "Default Gateway:\t%4")
-                              .arg(iface.hardwareAddress(), m_ipLabel->text(), m_maskLabel->text(), m_gatewayLabel->text());
+    QString hwAddress = iface.hardwareAddress();
+    QString dhcpEnabled = (m_addrTypeLabel->text() == "Assigned by DHCP") ? "Yes" : "No";
 
-    QMessageBox::information(this, "Network Connection Details", details);
+    // Query extended details via nmcli
+    QProcess proc;
+    proc.start("nmcli", {"-t", "dev", "show", m_iface});
+    proc.waitForFinished();
+    QString output = QString::fromUtf8(proc.readAllStandardOutput());
+
+    QString description = iface.humanReadableName(); // Fallback
+    QString dnsSuffix = "";
+    QStringList ipv4Dns, ipv6Dns;
+    QString dhcpServer = "";
+    QString ipv6LinkLocal = "";
+    QString ipv6Gateway = "";
+
+    // Parse the nmcli output
+    for (const QString &line : output.split('\n', Qt::SkipEmptyParts)) {
+        QStringList parts = line.split(':');
+        if (parts.size() < 2) continue;
+        
+        QString key = parts[0].trimmed();
+        // Re-join the value in case it contains colons (like MAC addresses or IPv6 addresses)
+        QString val = parts.mid(1).join(':').trimmed(); 
+
+        if (key == "GENERAL.PRODUCT") {
+            description = val;
+        } else if (key.startsWith("IP4.DOMAIN")) {
+            dnsSuffix = val;
+        } else if (key.startsWith("IP4.DNS")) {
+            ipv4Dns << val;
+        } else if (key.startsWith("IP6.DNS")) {
+            ipv6Dns << val;
+        } else if (key.startsWith("IP6.GATEWAY")) {
+            ipv6Gateway = val;
+        } else if (key.startsWith("IP6.ADDRESS") && val.startsWith("fe80")) {
+            ipv6LinkLocal = val.section('/', 0, 0); // Strip the /64 subnet mask
+        } else if (key.startsWith("DHCP4.OPTION") && val.contains("dhcp_server_identifier")) {
+            dhcpServer = val.section('=', 1, 1).trimmed();
+        }
+    }
+
+    // Format the details string
+    QString details = QString(
+        "Property\t\t|\tValue\n"
+        "================================================\n"
+        "DNS Suffix:\t\t%1\n"
+        "Description:\t\t%2\n"
+        "Physical Address:\t\t%3\n"
+        "DHCP Enabled:\t\t%4\n"
+        "IPv4 Address:\t\t%5\n"
+        "IPv4 Subnet Mask:\t\t%6\n"
+        "IPv4 Default Gateway:\t%7\n"
+        "IPv4 DHCP Server:\t\t%8\n"
+        "IPv4 DNS Servers:\t\t%9\n"
+        "Link-local IPv6 Address:\t%10\n"
+        "IPv6 Default Gateway:\t%11\n"
+        "IPv6 DNS Servers:\t\t%12"
+    ).arg(
+        dnsSuffix.isEmpty() ? "N/A" : dnsSuffix, 
+        description,
+        hwAddress,
+        dhcpEnabled,
+        m_ipLabel->text(),
+        m_maskLabel->text(),
+        m_gatewayLabel->text(),
+        dhcpServer.isEmpty() ? "N/A" : dhcpServer,
+        ipv4Dns.isEmpty() ? "N/A" : ipv4Dns.join(", "),
+        ipv6LinkLocal.isEmpty() ? "N/A" : ipv6LinkLocal,
+        ipv6Gateway.isEmpty() ? "N/A" : ipv6Gateway,
+        ipv6Dns.isEmpty() ? "N/A" : ipv6Dns.join(", ")
+    );
+
+    QDialog dlg(this);
+    dlg.setWindowTitle("Network Connection Details");
+    dlg.resize(475, 500);
+
+    auto *layout = new QVBoxLayout(&dlg);
+    
+    // Add the top label
+    auto *headerLabel = new QLabel("Network connection details:", &dlg);
+    layout->addWidget(headerLabel);
+    
+    // Create a read-only text box for the details
+    auto *textBox = new QTextEdit(&dlg);
+    textBox->setReadOnly(true);
+    textBox->setPlainText(details);
+    textBox->setLineWrapMode(QTextEdit::NoWrap); // Completely prevents wrapping
+    textBox->setStyleSheet("QTextEdit { background-color: #ffffff; color: #000000; }");
+    layout->addWidget(textBox);
+
+    // Add a close button aligned to the right
+    auto *btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    auto *closeBtn = new QPushButton("Close", &dlg);
+    btnLayout->addWidget(closeBtn);
+    layout->addLayout(btnLayout);
+
+    connect(closeBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+
+    dlg.exec();
 }
 
 // ==============================================================================
