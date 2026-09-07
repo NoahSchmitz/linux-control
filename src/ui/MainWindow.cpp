@@ -459,6 +459,16 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
             }
             // (Intermediate crumb links are handled on press, above.)
         }
+        auto iconGridIt = m_iconGridLinks.constFind(watched);
+        if (iconGridIt != m_iconGridLinks.constEnd()) {
+            const auto &[target, isApplet] = iconGridIt.value();
+            if (isApplet) {
+                openApplet(target);
+            } else {
+                navigateTo(target);
+            }
+            return true;
+        }
     }
     return QMainWindow::eventFilter(watched, event);
 }
@@ -608,6 +618,7 @@ void MainWindow::showEntry(const QString &entry)
     m_appletLinks.clear();
     m_crumbNavLinks.clear();
     m_actionLinks.clear();
+    m_iconGridLinks.clear();
     m_sidebarTextEffect  = nullptr;
     m_updatePage         = nullptr;
     m_checkUpdatesLabel  = nullptr;
@@ -825,8 +836,7 @@ QWidget *MainWindow::buildHomePage()
     outerH->setContentsMargins(0, 0, 0, 0);
     outerH->setSpacing(0);
 
-    // Inner column: sized to its content (the two-column grid), holds heading
-    // row + grid. Centred in the white area like the real Control Panel.
+    // Inner column: sized to its content, holds heading row + content area
     auto *inner = new QWidget;
     inner->setStyleSheet("background: transparent;");
     inner->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
@@ -839,7 +849,7 @@ QWidget *MainWindow::buildHomePage()
     innerV->setContentsMargins(0, 15, 0, 10);
     innerV->setSpacing(0);
 
-    // Heading row: "Adjust your computer's settings"  |  View by: Category
+    // Heading row: "Adjust your computer's settings"  |  View by: [Current Mode]
     auto *headRow = new QHBoxLayout;
     headRow->setContentsMargins(0, 0, 0, 22);
 
@@ -855,87 +865,212 @@ QWidget *MainWindow::buildHomePage()
     viewByLabel->setStyleSheet("color: #333333; font-size: 9pt;");
     headRow->addWidget(viewByLabel);
 
-    // The Win7 "View by:" dropdown: blue text ending in the shared Aero arrow,
-    // orange on hover, opening its menu on click.
-    auto *categoryBtn = new Win7::MenuButton("Category");
+    // Determine current button text based on active mode
+    QString currentModeStr = "Category";
+    if (m_viewMode == ControlPanelView::LargeIcons) currentModeStr = "Large icons";
+    else if (m_viewMode == ControlPanelView::SmallIcons) currentModeStr = "Small icons";
+
+    auto *categoryBtn = new Win7::MenuButton(currentModeStr);
     auto *viewMenu = new QMenu(categoryBtn);
-    viewMenu->addAction("Category");
-    viewMenu->addAction("Large icons");
-    viewMenu->addAction("Small icons");
+    
+    QAction *actCategory = viewMenu->addAction("Category");
+    QAction *actLarge = viewMenu->addAction("Large icons");
+    QAction *actSmall = viewMenu->addAction("Small icons");
+
+    // Handle view switching when menu actions are triggered
+    QObject::connect(viewMenu, &QMenu::triggered, this, [this, categoryBtn](QAction *action) {
+        QString modeText = action->text();
+        categoryBtn->setText(modeText);
+        
+        if (modeText == "Category") {
+            m_viewMode = ControlPanelView::Category;
+        } else if (modeText == "Large icons") {
+            m_viewMode = ControlPanelView::LargeIcons;
+        } else if (modeText == "Small icons") {
+            m_viewMode = ControlPanelView::SmallIcons;
+        }
+        
+        // Refresh the central widget with the newly selected view mode
+        m_scroll->setWidget(buildHomePage());
+    });
+
+    viewMenu->setStyleSheet(
+        "QMenu { background-color: #ffffff; color: #000000; border: 1px solid #808080; }"
+        "QMenu::item:selected { background-color: #000080; color: #ffffff; }"
+    );
     categoryBtn->setMenu(viewMenu);
     headRow->addWidget(categoryBtn);
 
     innerV->addLayout(headRow);
 
-    // Two independent columns. The real Control Panel stacks each column as its
-    // own list with even gaps; it does NOT align rows across the two columns, so
-    // a short item never gets padded to match a tall item beside it.
-    auto *columnsWidget = new QWidget;
-    columnsWidget->setStyleSheet("background: transparent;");
-    auto *columns = new QHBoxLayout(columnsWidget);
-    columns->setContentsMargins(0, 0, 0, 0);
-    columns->setSpacing(28);
+    // Render either the Category grid or the Flat Icon grid based on m_viewMode
+    if (m_viewMode == ControlPanelView::Category) {
+        // --- EXISTING CATEGORY VIEW ---
+        auto *columnsWidget = new QWidget;
+        columnsWidget->setStyleSheet("background: transparent;");
+        auto *columns = new QHBoxLayout(columnsWidget);
+        columns->setContentsMargins(0, 0, 0, 0);
+        columns->setSpacing(28);
 
-    auto *colLeft = new QVBoxLayout;
-    colLeft->setContentsMargins(0, 0, 0, 0);
-    colLeft->setSpacing(0);
-    auto *colRight = new QVBoxLayout;
-    colRight->setContentsMargins(0, 0, 0, 0);
-    colRight->setSpacing(0);
+        auto *colLeft = new QVBoxLayout;
+        colLeft->setContentsMargins(0, 0, 0, 0);
+        colLeft->setSpacing(0);
+        auto *colRight = new QVBoxLayout;
+        colRight->setContentsMargins(0, 0, 0, 0);
+        colRight->setSpacing(0);
 
-    const QList<CategoryItem> &categories = homeCategories();
-    for (int i = 0; i < categories.size(); ++i) {
-        auto *w = new CategoryWidget(categories[i]);
-        // Queued: the swap deletes this widget, so it must not run while the
-        // widget's own click event is still on the call stack.
-        QObject::connect(w, &CategoryWidget::titleActivated,
-                         this, &MainWindow::navigateTo, Qt::QueuedConnection);
-        // Task sub-links: known tasks deep-link to their dedicated page; any
-        // other task falls back to its parent category page.
-        QObject::connect(w, &CategoryWidget::taskActivated, this,
-            [this](const QString &category, const QString &task) {
-                static const QHash<QString, QString> knownTaskPaths = {
-                    { "Uninstall a program",           kProgramsFeaturesPath },
-                    { "View network status and tasks", kNetworkSharingPath },
-                    { "Add or remove user accounts",   kUserAccountsPath },
-                    { "Change the theme",              kPersonalizationPath },
-                    { "Let Linux suggest settings",    kEaseOfAccessPath },
-                    { "Optimize visual display",       kEaseOfAccessPath },
-                    { "Back up your computer",         kBackupAndRestorePath },
-                    { "Restore files from backup",     kBackupAndRestorePath },
-                    { "Protect your computer",         kBitLockerPath },
-                    { "Manage BitLocker",              kBitLockerPath },
-                    { "Choose homegroup and sharing options", kHomeGroupPath },
-                    { "Set up your connection",        kInternetOptionsPath },
-                    { "AutoPlay",                      kAutoPlayPath },
-                    { "Default Programs",              kDefaultProgramsPath },
-                    { "Set your default programs",     kDefaultProgramsPath },
-                    { "Choose a default program",      kDefaultProgramsPath },
-                    { "Credential Manager",            kCredentialManagerPath },
-                    { "Manage Windows Credentials",    kCredentialManagerPath },
-                    { "Folder Options",                kFolderOptionsPath },
-                    { "Change folder and search options", kFolderOptionsPath },
-                    { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
-                    { "Change the taskbar and Start menu", kTaskbarAndStartMenuPath },
-                };
-                const auto it = knownTaskPaths.constFind(task);
-                navigateTo(it != knownTaskPaths.constEnd() ? it.value()
-                                                           : category);
-            }, Qt::QueuedConnection);
-        (i % 2 == 0 ? colLeft : colRight)->addWidget(w);
+        const QList<CategoryItem> &categories = homeCategories();
+        for (int i = 0; i < categories.size(); ++i) {
+            auto *w = new CategoryWidget(categories[i]);
+            QObject::connect(w, &CategoryWidget::titleActivated,
+                             this, &MainWindow::navigateTo, Qt::QueuedConnection);
+            QObject::connect(w, &CategoryWidget::taskActivated, this,
+                [this](const QString &category, const QString &task) {
+                    static const QHash<QString, QString> knownTaskPaths = {
+                        { "Uninstall a program",           kProgramsFeaturesPath },
+                        { "View network status and tasks", kNetworkSharingPath },
+                        { "Add or remove user accounts",   kUserAccountsPath },
+                        { "Change the theme",              kPersonalizationPath },
+                        { "Let Linux suggest settings",    kEaseOfAccessPath },
+                        { "Optimize visual display",       kEaseOfAccessPath },
+                        { "Back up your computer",         kBackupAndRestorePath },
+                        { "Restore files from backup",     kBackupAndRestorePath },
+                        { "Protect your computer",         kBitLockerPath },
+                        { "Manage BitLocker",              kBitLockerPath },
+                        { "Choose homegroup and sharing options", kHomeGroupPath },
+                        { "Set up your connection",        kInternetOptionsPath },
+                        { "AutoPlay",                      kAutoPlayPath },
+                        { "Default Programs",              kDefaultProgramsPath },
+                        { "Set your default programs",     kDefaultProgramsPath },
+                        { "Choose a default program",      kDefaultProgramsPath },
+                        { "Credential Manager",            kCredentialManagerPath },
+                        { "Manage Windows Credentials",    kCredentialManagerPath },
+                        { "Folder Options",                kFolderOptionsPath },
+                        { "Change folder and search options", kFolderOptionsPath },
+                        { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
+                        { "Change the taskbar and Start menu", kTaskbarAndStartMenuPath },
+                    };
+                    const auto it = knownTaskPaths.constFind(task);
+                    navigateTo(it != knownTaskPaths.constEnd() ? it.value() : category);
+                }, Qt::QueuedConnection);
+            (i % 2 == 0 ? colLeft : colRight)->addWidget(w);
+        }
+        colLeft->addStretch(1);
+        colRight->addStretch(1);
+
+        columns->addLayout(colLeft);
+        columns->addLayout(colRight);
+        innerV->addWidget(columnsWidget);
+    } else {
+        // --- LARGE / SMALL ICONS GRID VIEW ---
+        auto *scrollContent = new QWidget;
+        scrollContent->setStyleSheet("background: #FFFFFF;");
+        auto *gridLayout = new QGridLayout(scrollContent);
+        gridLayout->setContentsMargins(20, 20, 20, 20);
+        gridLayout->setSpacing(8);
+
+        bool isLarge = (m_viewMode == ControlPanelView::LargeIcons);
+        int numCols = 3; // 3-column layout matching Windows 7 Control Panel
+
+        struct ControlPanelAppletEntry {
+            QString title;
+            QString iconName;
+            QString pathOrApplet;
+            bool isApplet = false;
+        };
+
+        QList<ControlPanelAppletEntry> allApplets = {
+            { "Action Center", "security-high", kActionCenterPath },
+            { "AutoPlay", "media-optical", kAutoPlayPath },
+            { "Backup and Restore", "document-save", kBackupAndRestorePath },
+            { "BitLocker Drive Encryption", "drive-encrypted", kBitLockerPath },
+            { "Credential Manager", "dialog-password", kCredentialManagerPath },
+            { "Date and Time", "x-office-calendar", "datetime", true },
+            { "Default Programs", "system-run", kDefaultProgramsPath },
+            { "Devices and Printers", "printer", kDevicesPrintersPath },
+            { "Ease of Access Center", "preferences-desktop-accessibility", kEaseOfAccessPath },
+            { "Folder Options", "folder", kFolderOptionsPath },
+            { "Fonts", "font-x-generic", kFontsPath },
+            { "HomeGroup", "network-workgroup", kHomeGroupPath },
+            { "Internet Options", "internet-web-browser", kInternetOptionsPath },
+            { "Linux Firewall", "security-medium", kFirewallPath },
+            { "Linux Update", "system-software-update", kUpdatePath },
+            { "Network and Sharing Center", "network-ordinary", kNetworkSharingPath },
+            { "Performance Information and Tools", "utilities-system-monitor", kPerformancePath },
+            { "Personalization", "preferences-desktop-theme", kPersonalizationPath },
+            { "Power Options", "battery", kPowerOptionsPath },
+            { "Programs and Features", "system-software-install", kProgramsFeaturesPath },
+            { "Sound", "audio-card", "sound", true },
+            { "System", "computer", "System and Security/System" },
+            { "Taskbar and Start Menu", "preferences-desktop-panel", kTaskbarAndStartMenuPath },
+            { "User Accounts", "system-users", kUserAccountsPath }
+        };
+
+        // Sort alphabetically like Windows Control Panel
+        std::sort(allApplets.begin(), allApplets.end(), [](const auto &a, const auto &b) {
+            return a.title < b.title;
+        });
+
+        for (int i = 0; i < allApplets.size(); ++i) {
+            const auto &entry = allApplets[i];
+            auto *itemWidget = new QWidget;
+            itemWidget->setCursor(Qt::PointingHandCursor);
+            itemWidget->setObjectName("iconGridItem");
+            itemWidget->installEventFilter(this);
+
+            m_iconGridLinks.insert(itemWidget, {entry.pathOrApplet, entry.isApplet});
+
+            if (isLarge) {
+                itemWidget->setFixedSize(180, 85);
+                auto *vLayout = new QVBoxLayout(itemWidget);
+                vLayout->setContentsMargins(6, 6, 6, 6);
+                vLayout->setSpacing(4);
+
+                auto *iconLbl = new QLabel;
+                iconLbl->setPixmap(resolveIcon(entry.iconName).pixmap(32, 32));
+                iconLbl->setAlignment(Qt::AlignCenter);
+                iconLbl->setStyleSheet("background: transparent;");
+                vLayout->addWidget(iconLbl);
+
+                auto *textLbl = new QLabel(entry.title);
+                textLbl->setAlignment(Qt::AlignCenter);
+                textLbl->setWordWrap(true);
+                textLbl->setStyleSheet("color: #000000; font-size: 9pt; background: transparent;");
+                vLayout->addWidget(textLbl);
+            } else {
+                itemWidget->setFixedHeight(32);
+                auto *hLayout = new QHBoxLayout(itemWidget);
+                hLayout->setContentsMargins(8, 2, 8, 2);
+                hLayout->setSpacing(8);
+
+                auto *iconLbl = new QLabel;
+                iconLbl->setPixmap(resolveIcon(entry.iconName).pixmap(16, 16));
+                iconLbl->setStyleSheet("background: transparent;");
+                hLayout->addWidget(iconLbl);
+
+                auto *textLbl = new QLabel(entry.title);
+                textLbl->setStyleSheet("color: #000000; font-size: 9pt; background: transparent;");
+                hLayout->addWidget(textLbl, 1);
+            }
+
+            itemWidget->setStyleSheet(
+                "#iconGridItem { background: transparent; border-radius: 3px; }"
+                "#iconGridItem:hover { background: #E5F3FF; border: 1px solid #CCE8FF; }"
+            );
+
+            int row = i / numCols;
+            int col = i % numCols;
+            gridLayout->addWidget(itemWidget, row, col);
+        }
+
+        gridLayout->setRowStretch(gridLayout->rowCount(), 1);
+        gridLayout->setColumnStretch(numCols, 1);
+        innerV->addWidget(scrollContent, 1);
     }
-    colLeft->addStretch(1);
-    colRight->addStretch(1);
 
-    columns->addLayout(colLeft);
-    columns->addLayout(colRight);
-
-    innerV->addWidget(columnsWidget);
     innerV->addStretch(1);
-
     return content;
 }
-
 MainWindow::Sidebar MainWindow::buildSidebarShell(int initialWidth)
 {
     auto *clip = new QScrollArea;

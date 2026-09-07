@@ -107,4 +107,8 @@ private:
     // Active Linux Update page and its "Check for updates" sidebar label.
     LinuxUpdatePage *m_updatePage         = nullptr;
     QLabel            *m_checkUpdatesLabel  = nullptr;
+
+    enum class ControlPanelView { Category, LargeIcons, SmallIcons };
+    ControlPanelView m_viewMode = ControlPanelView::Category;
+    QHash<QObject*, QPair<QString, bool>> m_iconGridLinks;
 };
