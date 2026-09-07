@@ -15,7 +15,9 @@
 #include <QDir>
 #include <QHostInfo>
 #include <QSysInfo>
-#include <QCoreApplication> // Required for applicationFilePath()
+#include <QCoreApplication>
+#include <QProcess>
+#include <QMouseEvent>
 
 // Data gathering
 // The interface backing the default route, read from /proc/net/route. Each line
@@ -263,16 +265,25 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
     // Same design as the System page: the heading label sits on a row with a
     // faint rule trailing off to its right, and an optional link pinned past the
     // rule at the far right.
-    auto addHeading = [&](const QString &text, const QString &trailingLink) {
-        QWidget *trailing = trailingLink.isEmpty()
-            ? nullptr
-            : Win7::bodyLabel(trailingLink, /*link=*/true);
+    auto addHeading = [&](const QString &text, const QString &trailingLink, const QString &objName = QString()) {
+        QLabel *trailing = nullptr;
+        if (!trailingLink.isEmpty()) {
+            trailing = Win7::bodyLabel(trailingLink, /*link=*/true);
+            
+            // If we passed an object name, make it interactive
+            if (!objName.isEmpty()) {
+                trailing->setObjectName(objName);
+                trailing->setCursor(Qt::PointingHandCursor);
+                trailing->installEventFilter(this);
+            }
+        }
         contentV->addLayout(
             Win7::sectionHeading(text, trailing, nullptr, "#000000"));
         contentV->addSpacing(6);
     };
 
-    addHeading("View your active networks", "Connect or disconnect");
+    // Pass our custom object name here
+    addHeading("View your active networks", "Connect or disconnect", "connectDisconnectBtn");
 
     // Active-network panel: icon + (name / category) on the left, a vertical
     // rule, then the access-type / connections grid on the right.
@@ -392,19 +403,26 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
 
 bool NetworkSharingPage::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_fullMapLabel) {
+    if (watched == m_fullMapLabel || watched->objectName() == QStringLiteral("connectDisconnectBtn")) {
         // Handle Hover Underline
         if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
-            QFont f = m_fullMapLabel->font();
+            auto *label = static_cast<QLabel *>(watched);
+            QFont f = label->font();
             f.setUnderline(event->type() == QEvent::Enter);
-            m_fullMapLabel->setFont(f);
+            label->setFont(f);
             return true;
         }
         // Handle Click
         if (event->type() == QEvent::MouseButtonRelease) {
             auto *me = static_cast<QMouseEvent *>(event);
             if (me->button() == Qt::LeftButton) {
-                emit viewFullMapRequested();
+                if (watched == m_fullMapLabel) {
+                    emit viewFullMapRequested();
+                } else if (watched->objectName() == QStringLiteral("connectDisconnectBtn")) {
+                    // Send simulated mouse click to the sfwbar network icon
+                    QString hackyCmd = "ydotool mousemove -a -x 1440 -y 1000 ; sleep 0.1 ; ydotool click 0x40 ; sleep 0.05 ; ydotool click 0x80";
+                    QProcess::startDetached("bash", QStringList() << "-c" << hackyCmd);
+                }
                 return true;
             }
         }
