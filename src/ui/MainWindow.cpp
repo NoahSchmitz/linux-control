@@ -30,6 +30,7 @@
 #include <QTimer>
 #include <QProcess>
 #include <QStandardPaths>
+// #include <QDebug>
 #include <QMessageBox>
 #include "Categories.h"
 #include "Branding.h"
@@ -60,6 +61,7 @@
 #include "pages/CredentialManagerPage.h"
 #include "pages/FolderOptionsPage.h"
 #include "pages/TaskbarAndStartMenuPage.h"
+#include "pages/NetworkConnectionsPage.h"
 #include "dialogs/DateTimeDialog.h"
 
 MainWindow::MainWindow(QWidget *parent)
@@ -149,8 +151,8 @@ void MainWindow::buildCrumbBar()
         /* Target ONLY the crumb bar container */
         "#crumbBar { "
         "  background: #c0c0c0;"
-        "  border-top: 2px solid #808080;"
-        "  border-bottom: 2px solid #dfdfdf;"
+        "  border-top: 2px solid #dfdfdf;"
+        "  border-bottom: 2px solid #808080;"
         "}"
         /* Default & Disabled state: Flat/No visible borders */
         "QPushButton#navBackBtn, QPushButton#navForwardBtn { "
@@ -181,6 +183,8 @@ void MainWindow::buildCrumbBar()
     pathBox->setObjectName("addressBox");
     pathBox->setStyleSheet(
         "#addressBox { "
+        "  border-top: 2px solid #808080;"
+        "  border-bottom: 2px solid #dfdfdf;"
         "  border-left: 2px solid #808080;"
         "  border-right: 2px solid #dfdfdf;"
         "  border-radius: 0px;"
@@ -206,7 +210,11 @@ void MainWindow::buildCrumbBar()
     m_searchBox->setStyleSheet(
         "QLineEdit { "
         "  border-radius: 0px;"
-        "  background-color: #c0c0c0;"
+        "  border-top: 2px solid #808080;"
+        "  border-bottom: 2px solid #dfdfdf;"
+        "  border-left: 2px solid #808080;"
+        "  border-right: 2px solid #dfdfdf;"
+        "  background-color: #ffffff;"
         "  color: #000000;"
         "}"
     );
@@ -228,9 +236,12 @@ void MainWindow::buildCrumbBar()
                 // Brighter border while typing
                 m_searchBox->setStyleSheet(
                     "QLineEdit { "
-                    "  border: 2px solid #000080;"
                     "  border-radius: 0px;"
-                    "  background: #FFFFFF;"
+                    "  border-top: 2px solid #808080;"
+                    "  border-bottom: 2px solid #dfdfdf;"
+                    "  border-left: 2px solid #808080;"
+                    "  border-right: 2px solid #dfdfdf;"
+                    "  background-color: #ffffff;"
                     "  color: #000000;"
                     "}"
                 );
@@ -238,9 +249,12 @@ void MainWindow::buildCrumbBar()
                 // Return to normal inset border
                 m_searchBox->setStyleSheet(
                     "QLineEdit { "
-                    "  border: 2px solid #000000;"
                     "  border-radius: 0px;"
-                    "  background: #FFFFFF;"
+                    "  border-top: 2px solid #808080;"
+                    "  border-bottom: 2px solid #dfdfdf;"
+                    "  border-left: 2px solid #808080;"
+                    "  border-right: 2px solid #dfdfdf;"
+                    "  background-color: #c0c0c0;"
                     "  color: #000000;"
                     "}"
                 );
@@ -325,6 +339,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
                 || m_subpageLinks.contains(watched)
                 || m_commandLinks.contains(watched)
                 || m_appletLinks.contains(watched)
+                || m_actionLinks.contains(watched)
                 || m_crumbNavLinks.contains(watched))
             {
                 QFont font = label->font();
@@ -404,6 +419,14 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event)
                     Qt::QueuedConnection);
                 return true;
             }
+
+            auto actionIt = m_actionLinks.constFind(watched);
+            if (actionIt != m_actionLinks.constEnd()) {
+                // Execute the lambda stored for this label
+                actionIt.value()(); 
+                return true;
+            }
+
             auto navIt = m_navLinks.constFind(watched);
             if (navIt != m_navLinks.constEnd()) {
                 const QString path = navIt.value();
@@ -466,12 +489,13 @@ static const QString kDefaultProgramsPath  = PageRegistry::pathFor(PageId::Defau
 static const QString kCredentialManagerPath= PageRegistry::pathFor(PageId::CredentialManager);
 static const QString kFolderOptionsPath    = PageRegistry::pathFor(PageId::FolderOptions);
 static const QString kTaskbarAndStartMenuPath = PageRegistry::pathFor(PageId::TaskbarAndStartMenu);
+static const QString kNetworkConnectionsPath = PageRegistry::pathFor(PageId::NetworkConnections);
 
 // A sub-path (one containing '/') is routable only if showEntry knows how to
 // render it. Category-level paths are validated separately via detailGroupsFor.
 static bool isRoutableSubPath(const QString &path)
 {
-    return path == kUpdatePath || path == kSelectPath
+    bool result = path == kUpdatePath || path == kSelectPath
         || path == kProgramsFeaturesPath
         || path == kInstalledUpdatesPath
         || path == kNetworkSharingPath
@@ -493,7 +517,10 @@ static bool isRoutableSubPath(const QString &path)
         || path == kCredentialManagerPath
         || path == kFolderOptionsPath
         || path == kTaskbarAndStartMenuPath
+        || path == kNetworkConnectionsPath
         || path == QStringLiteral("System and Security/System");
+    // qDebug() << "isRoutableSubPath(" << path << ") =" << result;
+    return result;
 }
 
 void MainWindow::navigateHome()
@@ -504,18 +531,22 @@ void MainWindow::navigateHome()
 
 void MainWindow::navigateTo(const QString &path)
 {
+    // qDebug() << "MainWindow::navigateTo called with:" << path;
+    
     if (path.contains('/')) {
         // Sub-path: if we can't render it (e.g. an intermediate crumb like
         // "Programs/Programs and Features" with no page of its own), fall back
         // to its parent category page rather than showing a blank pane.
         if (!isRoutableSubPath(path)) {
             const QString category = path.section('/', 0, 0);
+            // qDebug() << "Path not routable, falling back to category:" << category;
             if (detailGroupsFor(category))
                 navigateTo(category);
             return;
         }
     } else if (!detailGroupsFor(path)) {
         // Category-level path with no detail page: nothing to show.
+        // qDebug() << "Category not found, returning early";
         return;
     }
     m_navSound.play();
@@ -552,6 +583,9 @@ void MainWindow::openApplet(const QString &id)
 // Render an entry without touching history. Empty string == home page.
 void MainWindow::showEntry(const QString &entry)
 {
+    // qDebug() << "MainWindow::showEntry called with:" << entry;
+    // qDebug() << "kNetworkConnectionsPath is:" << kNetworkConnectionsPath;
+    
     // Moving between the status view and the select-updates view reuses the
     // live page so the checked-update state survives; only the crumb trail and
     // the page's internal view switch. Recreating it would reset the checks.
@@ -570,6 +604,7 @@ void MainWindow::showEntry(const QString &entry)
     m_commandLinks.clear();
     m_appletLinks.clear();
     m_crumbNavLinks.clear();
+    m_actionLinks.clear();
     m_sidebarTextEffect  = nullptr;
     m_updatePage         = nullptr;
     m_checkUpdatesLabel  = nullptr;
@@ -717,6 +752,11 @@ void MainWindow::showEntry(const QString &entry)
                 TaskbarAndStartMenuPage::sidebarLinks(),
                 TaskbarAndStartMenuPage::sidebarSeeAlso());
             m_scroll->setWidget(new TaskbarAndStartMenuPage(sidebar));
+        } else if (entry == kNetworkConnectionsPath) {
+            auto *sidebar = buildSubpageSidebar(
+                NetworkConnectionsPage::sidebarLinks(),
+                NetworkConnectionsPage::sidebarSeeAlso());
+            m_scroll->setWidget(new NetworkConnectionsPage(sidebar));
         }
     } else {
         setCrumbTrail({ entry });
@@ -1034,20 +1074,23 @@ QScrollArea *MainWindow::buildNavSidebar(const QString &currentCategory)
 void MainWindow::registerLinkTarget(QLabel *label, const LinkTarget &target)
 {
     switch (target.kind) {
-    case LinkTarget::Home:
-        m_subpageLinks.insert(label, QString());
-        break;
-    case LinkTarget::Page:
-        m_subpageLinks.insert(label, PageRegistry::pathFor(target.page));
-        break;
-    case LinkTarget::Command:
-        m_commandLinks.insert(label, target.command);
-        break;
-    case LinkTarget::Applet:
-        m_appletLinks.insert(label, target.applet);
-        break;
-    case LinkTarget::None:
-        break;
+        case LinkTarget::Home:
+            m_subpageLinks.insert(label, QString());
+            break;
+        case LinkTarget::Page:
+            m_subpageLinks.insert(label, PageRegistry::pathFor(target.page));
+            break;
+        case LinkTarget::Command:
+            m_commandLinks.insert(label, target.command);
+            break;
+        case LinkTarget::Applet:
+            m_appletLinks.insert(label, target.applet);
+            break;
+        case LinkTarget::Action:
+            m_actionLinks.insert(label, target.action);
+            break;
+        case LinkTarget::None:
+            break;
     }
 }
 

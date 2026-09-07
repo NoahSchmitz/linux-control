@@ -16,10 +16,10 @@ add_executable(controlpanel
     src/main.cpp
     src/ui/LinkLabel.h
     src/ui/MainWindow.cpp
-    src/ui/NetworkConnectionsPage.h
     src/ui/PageRegistry.cpp
     src/ui/CategoryWidget.cpp
     src/ui/Win7Ui.h
+    src/ui/pages/NetworkConnectionsPage.cpp
     src/ui/pages/LinuxUpdatePage.cpp
     src/ui/pages/SystemPage.cpp
     src/ui/pages/InstalledUpdatesPage.cpp

@@ -6,6 +6,7 @@
 #include <QSoundEffect>
 #include <QGraphicsOpacityEffect>
 #include "PageId.h"
+#include <functional>
 
 class QScrollArea;
 class QLineEdit;
@@ -39,6 +40,7 @@ private:
 
     void buildCrumbBar();
     QWidget *buildHomePage();
+    QHash<const QObject *, std::function<void()>> m_actionLinks;
     QWidget *buildCategoryPage(const QString &category);
     QScrollArea *buildNavSidebar(const QString &currentCategory);
     QScrollArea *buildSubpageSidebar(const QList<SidebarLink> &links,

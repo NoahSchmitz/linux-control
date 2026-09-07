@@ -53,12 +53,13 @@ enum class PageId {
 // page (by id), return home, launch an external command, or open an in-app
 // applet dialog. `None` is a decorative link that renders but does nothing.
 struct LinkTarget {
-    enum Kind { None, Home, Page, Command, Applet };
+    enum Kind { None, Home, Page, Command, Applet, Action };
 
     Kind        kind = None;
     PageId      page = PageId::None;   // used when kind == Page
     QStringList command;               // used when kind == Command
     QString     applet;                // used when kind == Applet
+    std::function<void()> action;      // used when kind == Action
 };
 
 // One entry in a page's left-nav sidebar: the text to show plus its target.
@@ -69,45 +70,54 @@ struct SidebarLink {
 
 namespace Nav {
 
-// A link that navigates to another detail page.
-inline SidebarLink to(const QString &text, PageId page)
-{
-    LinkTarget t;
-    t.kind = LinkTarget::Page;
-    t.page = page;
-    return { text, t };
-}
+    // A link that navigates to another detail page.
+    inline SidebarLink to(const QString &text, PageId page)
+    {
+        LinkTarget t;
+        t.kind = LinkTarget::Page;
+        t.page = page;
+        return { text, t };
+    }
 
-// A link back to the Control Panel home view.
-inline SidebarLink home(const QString &text)
-{
-    LinkTarget t;
-    t.kind = LinkTarget::Home;
-    return { text, t };
-}
+    // A link back to the Control Panel home view.
+    inline SidebarLink home(const QString &text)
+    {
+        LinkTarget t;
+        t.kind = LinkTarget::Home;
+        return { text, t };
+    }
 
-// A link that launches an external program (e.g. a KDE settings module).
-inline SidebarLink command(const QString &text, QStringList cmd)
-{
-    LinkTarget t;
-    t.kind    = LinkTarget::Command;
-    t.command = std::move(cmd);
-    return { text, t };
-}
+    // A link that launches an external program (e.g. a KDE settings module).
+    inline SidebarLink command(const QString &text, QStringList cmd)
+    {
+        LinkTarget t;
+        t.kind    = LinkTarget::Command;
+        t.command = std::move(cmd);
+        return { text, t };
+    }
 
-// A link that opens an in-app applet dialog, e.g. "datetime" or "sound".
-inline SidebarLink applet(const QString &text, QString id)
-{
-    LinkTarget t;
-    t.kind   = LinkTarget::Applet;
-    t.applet = std::move(id);
-    return { text, t };
-}
+    // A link that opens an in-app applet dialog, e.g. "datetime" or "sound".
+    inline SidebarLink applet(const QString &text, QString id)
+    {
+        LinkTarget t;
+        t.kind   = LinkTarget::Applet;
+        t.applet = std::move(id);
+        return { text, t };
+    }
 
-// A decorative link that renders like the rest but has no destination yet.
-inline SidebarLink plain(const QString &text)
-{
-    return { text, LinkTarget{} };
-}
+    // A link that executes a C++ lambda when clicked.
+    inline SidebarLink action(const QString &text, std::function<void()> callback)
+    {
+        LinkTarget t;
+        t.kind = LinkTarget::Action;
+        t.action = std::move(callback);
+        return { text, t };
+    }
+
+    // A decorative link that renders like the rest but has no destination yet.
+    inline SidebarLink plain(const QString &text)
+    {
+        return { text, LinkTarget{} };
+    }
 
 } // namespace Nav

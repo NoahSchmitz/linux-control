@@ -6,8 +6,6 @@
 #include "MainWindow.h"
 #include "IconHelper.h"
 
-#include "ui/NetworkConnectionsPage.h"
-
 // AeroQt's application stylesheet skins QScrollBar with the Win7 look. We want
 // the desktop theme's native scroll bars instead, and they cannot be rescued
 // per-widget: while an app-wide stylesheet is active, Qt wraps even an
@@ -97,14 +95,6 @@ int main(int argc, char *argv[]) {
     app.setWindowIcon(themeIcon({"preferences-system"}));
 
     new ScrollBarUnstyler(&app);   // native scroll bars; owned by the app
-
-    // If launched with the flag, show the Network Connections window directly
-    // if (app.arguments().contains("--network-connections")) {
-    //     NetworkConnectionsPage ncWindow;
-    //     ncWindow.setAttribute(Qt::WA_DeleteOnClose);
-    //     ncWindow.show();
-    //     return app.exec();
-    // }
 
     MainWindow w;
     w.show();
