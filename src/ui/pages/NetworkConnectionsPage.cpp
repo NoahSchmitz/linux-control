@@ -25,6 +25,15 @@
 #include <QApplication>
 #include <QTextEdit>
 #include <QDateTime>
+#include <QComboBox>
+#include <QGridLayout>
+#include <QInputDialog>
+#include <QTreeWidget>
+#include <QHeaderView>
+#include <QInputDialog>
+
+#include "../MainWindow.h"
+#include "PageRegistry.h"
 
 // ==============================================================================
 // IPv4PropertiesDialog
@@ -511,7 +520,10 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     
     auto *adapterRow = new QHBoxLayout();
     auto *iconLabel = new QLabel(netTab);
-    iconLabel->setPixmap(QIcon::fromTheme(QStringLiteral("audio-card"), style()->standardIcon(QStyle::SP_ComputerIcon)).pixmap(32, 32));
+    QIcon myIcon = QIcon::fromTheme(QStringLiteral("audio-card"), style()->standardIcon(QStyle::SP_ComputerIcon));
+
+    // Set to 16 bc anything larger seems to load an icon with the audio icon on it.
+    iconLabel->setPixmap(myIcon.pixmap(16, 16));
     adapterRow->addWidget(iconLabel);
     adapterRow->addWidget(new QLabel(hardwareName, netTab), 1);
     auto *configBtn = new QPushButton("Configure...", netTab);
@@ -558,8 +570,317 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     netLayout->addWidget(descGroup);
 
     tabWidget->addTab(netTab, "General");
-    tabWidget->addTab(new QWidget(tabWidget), "Authentication");
-    tabWidget->addTab(new QWidget(tabWidget), "Advanced");
+
+// Determine if the interface is Wi-Fi and if it is currently connected
+    QProcess typeProc;
+    typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE,GENERAL.CONNECTION", "dev", "show", m_ifaceName});
+    typeProc.waitForFinished();
+    QString devOutput = QString::fromUtf8(typeProc.readAllStandardOutput());
+    
+    bool isWifi = false;
+    bool isConnected = false;
+    QString activeCon;
+
+    for (const QString &line : devOutput.split('\n', Qt::SkipEmptyParts)) {
+        if (line.startsWith("GENERAL.TYPE:")) {
+            isWifi = line.mid(13).toLower().contains("wifi");
+        } else if (line.startsWith("GENERAL.CONNECTION:")) {
+            activeCon = line.mid(19).trimmed();
+            isConnected = (!activeCon.isEmpty() && activeCon != "--");
+        }
+    }
+
+    auto *authTab = new QWidget(tabWidget);
+
+    if (isWifi && isConnected) {
+        // ================= SECURITY TAB (Connected Wi-Fi) =================
+        auto *wifiSecLayout = new QVBoxLayout(authTab);
+        wifiSecLayout->setContentsMargins(12, 16, 12, 12);
+        
+        auto *gridLayout = new QGridLayout();
+        gridLayout->setSpacing(10);
+        
+        gridLayout->addWidget(new QLabel("Security type:", authTab), 0, 0);
+        auto *secTypeCombo = new QComboBox(authTab);
+        secTypeCombo->setObjectName("wifiSecType");
+        secTypeCombo->addItems({"No authentication (Open)", "Shared", "WPA2-Personal", "WPA-Personal", "WPA2-Enterprise", "WPA-Enterprise", "802.1x"});
+        gridLayout->addWidget(secTypeCombo, 0, 1);
+        
+        gridLayout->addWidget(new QLabel("Encryption type:", authTab), 1, 0);
+        auto *encTypeCombo = new QComboBox(authTab);
+        encTypeCombo->addItems({"TKIP", "AES"});
+        gridLayout->addWidget(encTypeCombo, 1, 1);
+        
+        gridLayout->addWidget(new QLabel("Network security key:", authTab), 2, 0);
+        auto *keyEdit = new QLineEdit(authTab);
+        keyEdit->setObjectName("wifiKey");
+        keyEdit->setEchoMode(QLineEdit::Password);
+        gridLayout->addWidget(keyEdit, 2, 1);
+        
+        auto *showCharsCb = new QCheckBox("Show characters", authTab);
+        gridLayout->addWidget(showCharsCb, 3, 1);
+        
+        gridLayout->setColumnStretch(1, 1);
+        wifiSecLayout->addLayout(gridLayout);
+        wifiSecLayout->addStretch();
+        
+        connect(showCharsCb, &QCheckBox::toggled, keyEdit, [keyEdit](bool checked) {
+            keyEdit->setEchoMode(checked ? QLineEdit::Normal : QLineEdit::Password);
+        });
+
+        connect(secTypeCombo, &QComboBox::currentTextChanged, this, [keyEdit, encTypeCombo](const QString &text) {
+            keyEdit->setEnabled(text.contains("Personal") || text == "Shared");
+            if (text.contains("Open")) {
+                if (encTypeCombo->findText("None") == -1) encTypeCombo->addItem("None");
+                encTypeCombo->setCurrentText("None");
+                encTypeCombo->setEnabled(false);
+            } else {
+                int idx = encTypeCombo->findText("None");
+                if (idx != -1) encTypeCombo->removeItem(idx);
+                encTypeCombo->setEnabled(true);
+                encTypeCombo->setCurrentText("AES"); 
+            }
+        });
+
+        QProcess wifiProc;
+        wifiProc.start("nmcli", {"-t", "-s", "-f", "802-11-wireless-security.key-mgmt,802-11-wireless-security.psk", "con", "show", activeCon});
+        wifiProc.waitForFinished();
+        QString out = QString::fromUtf8(wifiProc.readAllStandardOutput());
+        QMap<QString, QString> secMap;
+        for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+            int idx = line.indexOf(':');
+            if (idx > 0) secMap[line.left(idx)] = line.mid(idx + 1).trimmed();
+        }
+
+        QString keyMgmt = secMap["802-11-wireless-security.key-mgmt"];
+        if (keyMgmt == "wpa-psk" || keyMgmt == "sae") {
+            secTypeCombo->setCurrentText("WPA2-Personal");
+            keyEdit->setText(secMap["802-11-wireless-security.psk"]);
+        } else if (keyMgmt == "wpa-eap") { secTypeCombo->setCurrentText("WPA2-Enterprise");
+        } else if (keyMgmt == "ieee8021x") { secTypeCombo->setCurrentText("802.1x");
+        } else if (keyMgmt == "none") { secTypeCombo->setCurrentText(secMap.contains("wep-key0") ? "Shared" : "No authentication (Open)");
+        } else { secTypeCombo->setCurrentText("No authentication (Open)"); }
+
+        tabWidget->addTab(authTab, "Security");
+
+    } else if (isWifi && !isConnected) {
+        // ================= WIRELESS NETWORKS TAB (Disconnected Wi-Fi) =================
+        auto *wirelessLayout = new QVBoxLayout(authTab);
+        wirelessLayout->setContentsMargins(12, 12, 12, 12);
+
+        auto *useLinuxCb = new QCheckBox("Use Linux to configure my wireless network settings", authTab);
+        useLinuxCb->setChecked(true);
+        wirelessLayout->addWidget(useLinuxCb);
+
+        // Group 1: Available networks
+        auto *availGroup = new QGroupBox("Available networks", authTab);
+        auto *availLayout = new QVBoxLayout(availGroup);
+        availLayout->setSpacing(8);
+        
+        auto *availDesc = new QLabel("To connect to, disconnect from, or find out more information\nabout wireless networks in range, click the button below.", availGroup);
+        availDesc->setWordWrap(true);
+        availLayout->addWidget(availDesc);
+
+        auto *availBtnLayout = new QHBoxLayout();
+        availBtnLayout->addStretch();
+        auto *viewNetsBtn = new QPushButton("View Wireless Networks", availGroup);
+        availBtnLayout->addWidget(viewNetsBtn);
+        availLayout->addLayout(availBtnLayout);
+        wirelessLayout->addWidget(availGroup);
+
+        // Group 2: Preferred networks
+        auto *prefGroup = new QGroupBox("Preferred networks", authTab);
+        auto *prefLayout = new QVBoxLayout(prefGroup);
+        prefLayout->addWidget(new QLabel("Automatically connect to available networks in the order listed\nbelow:", prefGroup));
+
+        auto *listRowLayout = new QHBoxLayout();
+        auto *savedNetsList = new QListWidget(prefGroup);
+        savedNetsList->setObjectName("prefNetsList");
+        listRowLayout->addWidget(savedNetsList);
+
+        auto *moveBtnsLayout = new QVBoxLayout();
+        auto *moveUpBtn = new QPushButton("Move up", prefGroup);
+        auto *moveDownBtn = new QPushButton("Move down", prefGroup);
+        moveUpBtn->setEnabled(false);
+        moveDownBtn->setEnabled(false);
+        moveBtnsLayout->addWidget(moveUpBtn);
+        moveBtnsLayout->addWidget(moveDownBtn);
+        moveBtnsLayout->addStretch();
+        listRowLayout->addLayout(moveBtnsLayout);
+        prefLayout->addLayout(listRowLayout);
+
+        auto *actionBtnsLayout = new QHBoxLayout();
+        auto *addBtn = new QPushButton("Add...", prefGroup);
+        auto *removeBtn = new QPushButton("Remove", prefGroup);
+        auto *propsBtn = new QPushButton("Properties", prefGroup);
+        removeBtn->setEnabled(false);
+        propsBtn->setEnabled(false);
+        actionBtnsLayout->addWidget(addBtn);
+        actionBtnsLayout->addWidget(removeBtn);
+        actionBtnsLayout->addWidget(propsBtn);
+        actionBtnsLayout->addStretch();
+        prefLayout->addLayout(actionBtnsLayout);
+        wirelessLayout->addWidget(prefGroup);
+
+        // Bottom link / Advanced
+        auto *bottomRow = new QHBoxLayout();
+        auto *learnLabel = new QLabel("Learn about <a href=\"#\">setting up wireless network<br>configuration.</a>", authTab);
+        learnLabel->setOpenExternalLinks(false); // Decorative
+        auto *advancedBtn = new QPushButton("Advanced", authTab);
+        bottomRow->addWidget(learnLabel);
+        bottomRow->addStretch();
+        bottomRow->addWidget(advancedBtn, 0, Qt::AlignBottom);
+        wirelessLayout->addLayout(bottomRow);
+
+        tabWidget->addTab(authTab, "Wireless Networks");
+
+        // --- Logic & Wiring ---
+        auto loadSavedNetworks = [savedNetsList]() {
+            savedNetsList->clear();
+            QProcess p;
+            p.start("nmcli", {"-t", "-f", "NAME,UUID,TYPE", "con", "show"});
+            p.waitForFinished();
+            QString out = QString::fromUtf8(p.readAllStandardOutput());
+            for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+                QStringList parts = line.split(':');
+                if (parts.size() >= 3 && parts[2] == "802-11-wireless") {
+                    auto *item = new QListWidgetItem(parts[0], savedNetsList);
+                    item->setData(Qt::UserRole, parts[1]); // Store UUID
+                    item->setIcon(QIcon::fromTheme("network-wireless-signal-excellent"));
+                }
+            }
+        };
+        loadSavedNetworks();
+
+        // Manage button states
+        connect(savedNetsList, &QListWidget::itemSelectionChanged, [=]() {
+            bool hasSel = !savedNetsList->selectedItems().isEmpty();
+            int row = savedNetsList->currentRow();
+            removeBtn->setEnabled(hasSel);
+            propsBtn->setEnabled(hasSel);
+            moveUpBtn->setEnabled(hasSel && row > 0);
+            moveDownBtn->setEnabled(hasSel && row < savedNetsList->count() - 1);
+        });
+
+        // Move Up / Down (visually resorts them; saved via pkexec in applySettings)
+        connect(moveUpBtn, &QPushButton::clicked, [=]() {
+            int row = savedNetsList->currentRow();
+            if (row > 0) {
+                QListWidgetItem *item = savedNetsList->takeItem(row);
+                savedNetsList->insertItem(row - 1, item);
+                savedNetsList->setCurrentRow(row - 1);
+            }
+        });
+        connect(moveDownBtn, &QPushButton::clicked, [=]() {
+            int row = savedNetsList->currentRow();
+            if (row >= 0 && row < savedNetsList->count() - 1) {
+                QListWidgetItem *item = savedNetsList->takeItem(row);
+                savedNetsList->insertItem(row + 1, item);
+                savedNetsList->setCurrentRow(row + 1);
+            }
+        });
+
+        // Launch nm-connection-editor tools
+        connect(viewNetsBtn, &QPushButton::clicked, [this]() {
+            WirelessNetworksDialog dlg(m_ifaceName, this);
+            dlg.exec();
+        });
+        connect(advancedBtn, &QPushButton::clicked, []() { QProcess::startDetached("nm-connection-editor", {}); });
+        connect(addBtn, &QPushButton::clicked, []() { QProcess::startDetached("nm-connection-editor", {"--type", "wifi", "--create"}); });
+        
+        connect(propsBtn, &QPushButton::clicked, [savedNetsList]() {
+            if (savedNetsList->selectedItems().isEmpty()) return;
+            QString uuid = savedNetsList->selectedItems().first()->data(Qt::UserRole).toString();
+            QProcess::startDetached("nm-connection-editor", {"--edit", uuid});
+        });
+
+        connect(removeBtn, &QPushButton::clicked, [savedNetsList, loadSavedNetworks]() {
+            if (savedNetsList->selectedItems().isEmpty()) return;
+            QString uuid = savedNetsList->selectedItems().first()->data(Qt::UserRole).toString();
+            // Delete inline immediately
+            QProcess::execute("pkexec", {"nmcli", "con", "delete", "uuid", uuid});
+            loadSavedNetworks();
+        });
+
+    } else {
+        // ================= AUTHENTICATION TAB (Wired 802.1X) =================
+        auto *authLayout = new QVBoxLayout(authTab);
+        authLayout->setContentsMargins(12, 16, 12, 12);
+        
+        auto *authEnableCb = new QCheckBox("Enable IEEE 802.1X authentication for this network", authTab);
+        authLayout->addWidget(authEnableCb);
+        
+        auto *authMethodGroup = new QWidget(authTab);
+        auto *authMethodLayout = new QHBoxLayout(authMethodGroup);
+        authMethodLayout->setContentsMargins(20, 4, 0, 0); 
+        
+        auto *authComboLayout = new QVBoxLayout();
+        authComboLayout->setSpacing(2);
+        authComboLayout->addWidget(new QLabel("Choose a network authentication method:", authMethodGroup));
+        auto *authMethodCombo = new QComboBox(authMethodGroup);
+        authMethodCombo->addItems({"Protected EAP (PEAP)", "Smart Card or other certificate", "Tunneled TLS (TTLS)", "MD5-Challenge"});
+        authComboLayout->addWidget(authMethodCombo);
+        authMethodLayout->addLayout(authComboLayout);
+        
+        auto *authBtnLayout = new QVBoxLayout();
+        authBtnLayout->addSpacing(18); 
+        auto *authSettingsBtn = new QPushButton("Settings...", authMethodGroup);
+        authBtnLayout->addWidget(authSettingsBtn);
+        authMethodLayout->addLayout(authBtnLayout);
+        
+        authLayout->addWidget(authMethodGroup);
+        
+        auto *authRememberCb = new QCheckBox("Remember my credentials for this connection each time I'm\nlogged on", authTab);
+        authLayout->addWidget(authRememberCb);
+        authLayout->addStretch();
+        
+        connect(authEnableCb, &QCheckBox::toggled, authMethodGroup, &QWidget::setEnabled);
+        connect(authEnableCb, &QCheckBox::toggled, authRememberCb, &QWidget::setEnabled);
+        authEnableCb->setChecked(false); 
+        
+        tabWidget->addTab(authTab, "Authentication");
+    }
+
+    // ================= ADVANCED TAB =================
+    auto *advTab = new QWidget(tabWidget);
+    auto *advLayout = new QVBoxLayout(advTab);
+    advLayout->setContentsMargins(12, 16, 12, 12);
+    
+    auto *fwGroup = new QGroupBox("Linux Firewall", advTab);
+    auto *fwLayout = new QHBoxLayout(fwGroup);
+    fwLayout->setContentsMargins(12, 16, 12, 12);
+    fwLayout->setSpacing(15);
+    
+    auto *fwLabel = new QLabel("Protect my computer and network by limiting\nor preventing access to this computer from\nthe Internet", fwGroup);
+    fwLabel->setWordWrap(true);
+    
+    auto *fwBtnLayout = new QVBoxLayout();
+    auto *fwBtn = new QPushButton("Settings...", fwGroup);
+    fwBtnLayout->addWidget(fwBtn);
+    fwBtnLayout->addStretch(); // Push the button to the top to match classic layout
+    
+    fwLayout->addWidget(fwLabel, 1);
+    fwLayout->addLayout(fwBtnLayout);
+    
+    advLayout->addWidget(fwGroup);
+    advLayout->addStretch();
+    
+    tabWidget->addTab(advTab, "Advanced");
+
+    // Wire up the Firewall button to navigate the underlying window and close the dialog
+    connect(fwBtn, &QPushButton::clicked, this, [this]() {
+        this->accept();
+        for (QWidget *w : QApplication::topLevelWidgets()) {
+            if (auto *mainWindow = qobject_cast<MainWindow*>(w)) {
+                // Lambda-based invokeMethod avoids string lookups and slot requirements
+                QMetaObject::invokeMethod(mainWindow, [mainWindow]() {
+                    mainWindow->navigateTo(PageRegistry::pathFor(PageId::Firewall));
+                }, Qt::QueuedConnection);
+                break;
+            }
+        }
+    });
+
     mainLayout->addWidget(tabWidget);
 
     auto *bottomBtns = new QHBoxLayout();
@@ -682,22 +1003,65 @@ void AdapterPropertiesDialog::openItemProperties() {
 }
 
 void AdapterPropertiesDialog::applySettings() {
-    // Save LLDP setting based on checkbox state
-    QListWidgetItem* lldpItem = m_itemsList->findItems("LLDP Protocol Driver", Qt::MatchExactly).first();
-    bool enableLldp = (lldpItem->checkState() == Qt::Checked);
-
     QProcess proc;
     proc.start("nmcli", {"-t", "-f", "GENERAL.CONNECTION", "device", "show", m_ifaceName});
     proc.waitForFinished();
     QString conName = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
     if (conName.startsWith("GENERAL.CONNECTION:")) conName = conName.mid(19);
 
-    if (!conName.isEmpty()) {
-        // Set LLDP to 1 (RX only, standard for endpoints) or 0 (disabled)
-        QString lldpVal = enableLldp ? "1" : "0";
-        QProcess::execute("pkexec", {"nmcli", "con", "modify", conName, "connection.lldp", lldpVal});
+    QStringList modifyArgs;
+    
+    // Only attempt to modify the live interface LLDP/Security if there is an active connection
+    if (!conName.isEmpty() && conName != "--") {
+        modifyArgs << "nmcli" << "con" << "modify" << conName;
+
+        // 1. LLDP Configuration
+        QListWidgetItem* lldpItem = m_itemsList->findItems("LLDP Protocol Driver", Qt::MatchExactly).first();
+        bool enableLldp = (lldpItem->checkState() == Qt::Checked);
+        modifyArgs << "connection.lldp" << (enableLldp ? "1" : "0");
+
+        // 2. Wi-Fi Security Configuration (if currently on the Connected Wi-Fi Tab)
+        auto *secTypeCombo = findChild<QComboBox*>("wifiSecType");
+        auto *keyEdit = findChild<QLineEdit*>("wifiKey");
+
+        if (secTypeCombo) {
+            QString secType = secTypeCombo->currentText();
+            QString psk = keyEdit->text();
+
+            if (secType.contains("Personal")) {
+                modifyArgs << "wifi-sec.key-mgmt" << "wpa-psk";
+                if (!psk.isEmpty()) modifyArgs << "wifi-sec.psk" << psk;
+            } else if (secType.contains("Enterprise")) {
+                modifyArgs << "wifi-sec.key-mgmt" << "wpa-eap";
+            } else if (secType == "Shared") {
+                modifyArgs << "wifi-sec.key-mgmt" << "none" << "wifi-sec.wep-key-type" << "1"; 
+                if (!psk.isEmpty()) modifyArgs << "wifi-sec.wep-key0" << psk;
+            } else {
+                modifyArgs << "wifi-sec.key-mgmt" << "none" << "wifi-sec.wep-key-type" << "0";
+            }
+        }
+
+        QProcess::execute("pkexec", modifyArgs);
         QProcess::execute("pkexec", {"nmcli", "con", "up", conName});
     }
+
+    // 3. Save "Preferred Network" Priorities (if currently on the Disconnected Wi-Fi Tab)
+    auto *prefNetsList = findChild<QListWidget*>("prefNetsList");
+    if (prefNetsList) {
+        QString script;
+        int count = prefNetsList->count();
+        for (int i = 0; i < count; ++i) {
+            QString uuid = prefNetsList->item(i)->data(Qt::UserRole).toString();
+            int priority = count - i; // Top of the list gets highest number (highest priority)
+            script += QString("nmcli con modify uuid %1 connection.autoconnect-priority %2; ").arg(uuid).arg(priority);
+        }
+        
+        // Execute all priority changes in a single shell command to avoid multiple pkexec password prompts
+        if (!script.isEmpty()) {
+            QProcess::execute("pkexec", {"/bin/sh", "-c", script});
+        }
+    }
+    
     accept();
 }
 
@@ -826,8 +1190,9 @@ ConnectionStatusDialog::ConnectionStatusDialog(const QString &ifaceName, QWidget
     if (m_isWifi) {
         auto *wifiBtn = new QPushButton("View Wireless Networks", this);
         bottomBtns->addWidget(wifiBtn);
-        connect(wifiBtn, &QPushButton::clicked, this, []() {
-            QProcess::startDetached("nm-connection-editor", {});
+        connect(wifiBtn, &QPushButton::clicked, this, [this]() {
+            WirelessNetworksDialog dlg(m_iface, this);
+            dlg.exec();
         });
     }
 
@@ -888,7 +1253,7 @@ ConnectionStatusDialog::ConnectionStatusDialog(const QString &ifaceName, QWidget
 
 void ConnectionStatusDialog::checkIfaceType() {
     QProcess proc;
-    proc.start("nmcli", {"-t", "-f", "TYPE", "dev", "show", m_iface});
+    proc.start("nmcli", {"-t", "-f", "GENERAL.TYPE", "dev", "show", m_iface}); 
     proc.waitForFinished();
     QString type = QString::fromUtf8(proc.readAllStandardOutput()).toLower();
     m_isWifi = type.contains("wifi");
@@ -903,21 +1268,29 @@ quint64 ConnectionStatusDialog::readSysStat(const QString &stat) {
 }
 
 void ConnectionStatusDialog::updateMetrics() {
-    QProcess proc;
-    proc.start("nmcli", {"-t", "-f", "GENERAL.STATE", "dev", "show", m_iface});
-    proc.waitForFinished();
-    QString stateStr = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
-    
+    QNetworkInterface iface = QNetworkInterface::interfaceFromName(m_iface);
+    bool isUp = iface.isValid() && iface.flags().testFlag(QNetworkInterface::IsUp);
+
     bool isConnected = false;
-    if (stateStr.contains("(")) {
-        int start = stateStr.indexOf('(') + 1;
-        int end = stateStr.indexOf(')');
-        if (start > 0 && end > start) {
-            QString rawStatus = stateStr.mid(start, end - start);
-            if (!rawStatus.isEmpty()) {
-                isConnected = (rawStatus == "connected");
-                rawStatus[0] = rawStatus[0].toUpper();
-                m_statusLabel->setText(rawStatus);
+    QProcess proc; // Declare it here so the entire function can use it
+
+    if (!isUp) {
+        m_statusLabel->setText("Disabled");
+    } else {
+        proc.start("nmcli", {"-t", "-f", "GENERAL.STATE", "dev", "show", m_iface});
+        proc.waitForFinished();
+        QString stateStr = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        
+        if (stateStr.contains("(")) {
+            int start = stateStr.indexOf('(') + 1;
+            int end = stateStr.indexOf(')');
+            if (start > 0 && end > start) {
+                QString rawStatus = stateStr.mid(start, end - start);
+                if (!rawStatus.isEmpty()) {
+                    isConnected = (rawStatus == "connected");
+                    rawStatus[0] = rawStatus[0].toUpper();
+                    m_statusLabel->setText(rawStatus);
+                }
             }
         }
     }
@@ -1118,11 +1491,208 @@ void ConnectionStatusDialog::showDetailsDialog() {
 }
 
 // ==============================================================================
+// WirelessNetworksDialog
+// ==============================================================================
+
+WirelessNetworksDialog::WirelessNetworksDialog(const QString &ifaceName, QWidget *parent)
+    : QDialog(parent), m_iface(ifaceName)
+{
+    setWindowTitle("Wireless Network Connection");
+    resize(480, 300);
+
+    // Classic flat gray background
+    // setStyleSheet("QDialog { background-color: #D4D0C8; }");
+
+    auto *mainLayout = new QVBoxLayout(this);
+    mainLayout->setContentsMargins(10, 10, 10, 10);
+    mainLayout->setSpacing(8);
+
+    auto *lbl = new QLabel("Select a wireless network from the list below to connect or disconnect:", this);
+    mainLayout->addWidget(lbl);
+
+    m_tree = new QTreeWidget(this);
+    m_tree->setHeaderLabels({"Network Name (SSID)", "Security", "Signal"});
+    m_tree->setRootIsDecorated(false);
+    m_tree->setAllColumnsShowFocus(true);
+    m_tree->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_tree->setSelectionMode(QAbstractItemView::SingleSelection);
+    
+    mainLayout->addWidget(m_tree);
+
+    auto *btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    
+    auto *refreshBtn = new QPushButton("Refresh", this);
+    m_connectBtn = new QPushButton("Connect", this);
+    auto *cancelBtn = new QPushButton("Cancel", this);
+
+    m_connectBtn->setEnabled(false);
+
+    btnLayout->addWidget(refreshBtn);
+    btnLayout->addWidget(m_connectBtn);
+    btnLayout->addWidget(cancelBtn);
+
+    mainLayout->addLayout(btnLayout);
+
+    connect(refreshBtn, &QPushButton::clicked, this, &WirelessNetworksDialog::refreshNetworks);
+    connect(m_connectBtn, &QPushButton::clicked, this, &WirelessNetworksDialog::connectToNetwork);
+    connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    
+    // Toggle between Connect and Disconnect depending on the item's connection state
+    connect(m_tree, &QTreeWidget::itemSelectionChanged, this, [this]() {
+        auto items = m_tree->selectedItems();
+        if (items.isEmpty()) {
+            m_connectBtn->setEnabled(false);
+            m_connectBtn->setText("Connect");
+        } else {
+            m_connectBtn->setEnabled(true);
+            bool inUse = items.first()->data(0, Qt::UserRole + 2).toBool();
+            m_connectBtn->setText(inUse ? "Disconnect" : "Connect");
+        }
+    });
+
+    refreshNetworks();
+}
+
+void WirelessNetworksDialog::refreshNetworks() {
+    m_tree->clear();
+    m_connectBtn->setEnabled(false);
+    m_connectBtn->setText("Connect");
+
+    QProcess p;
+    p.start("nmcli", {"-t", "-f", "IN-USE,SSID,SECURITY,SIGNAL", "dev", "wifi", "list", "ifname", m_iface});
+    p.waitForFinished();
+    QString out = QString::fromUtf8(p.readAllStandardOutput());
+    
+    QSet<QString> seenSSIDs;
+    for (const QString& line : out.split('\n', Qt::SkipEmptyParts)) {
+        QStringList parts = line.split(':');
+        if (parts.size() >= 4) {
+            bool inUse = (parts[0].trimmed() == "*");
+            QString ssid = parts[1].trimmed();
+            QString sec = parts[2].trimmed();
+            int signal = parts[3].toInt();
+
+            if (ssid.isEmpty() || seenSSIDs.contains(ssid)) continue;
+            seenSSIDs.insert(ssid);
+
+            bool isSecure = !(sec.isEmpty() || sec == "--" || sec.contains("Open", Qt::CaseInsensitive));
+            QString secText = isSecure ? sec : "None";
+            
+            // Override security text if this is the active connection
+            if (inUse) {
+                secText = "Connected";
+            }
+            
+            auto *item = new QTreeWidgetItem(m_tree);
+            item->setText(0, ssid);
+            item->setText(1, secText);
+            item->setText(2, QString("%1%").arg(signal));
+
+            // Set small icons standard for late 90s lists
+            QString iconName = isSecure ? "network-wireless-encrypted" : "network-wireless";
+            item->setIcon(0, QIcon::fromTheme(iconName));
+
+            item->setData(0, Qt::UserRole, ssid);
+            item->setData(0, Qt::UserRole + 1, isSecure);
+            item->setData(0, Qt::UserRole + 2, inUse); // Store connection state
+            
+            // Bold the currently connected network
+            if (inUse) {
+                QFont f = item->font(0);
+                f.setBold(true);
+                item->setFont(0, f);
+                item->setFont(1, f);
+                item->setFont(2, f);
+            }
+        }
+    }
+    
+    // Auto-size columns to fit content
+    m_tree->resizeColumnToContents(0);
+    m_tree->resizeColumnToContents(1);
+}
+
+void WirelessNetworksDialog::connectToNetwork() {
+    auto items = m_tree->selectedItems();
+    if (items.isEmpty()) return;
+
+    QString ssid = items.first()->data(0, Qt::UserRole).toString();
+    bool isSecure = items.first()->data(0, Qt::UserRole + 1).toBool();
+    bool inUse = items.first()->data(0, Qt::UserRole + 2).toBool();
+
+    // 1. Disconnect if already connected
+    if (inUse) {
+        int res = QProcess::execute("nmcli", {"dev", "disconnect", m_iface});
+        if (res != 0) QProcess::execute("pkexec", {"nmcli", "dev", "disconnect", m_iface});
+        accept();
+        return;
+    }
+
+    // 2. Check if a profile already exists for this network
+    QProcess p;
+    p.start("nmcli", {"-t", "-f", "NAME,TYPE", "con", "show"});
+    p.waitForFinished();
+    QString conOut = QString::fromUtf8(p.readAllStandardOutput());
+    
+    bool profileExists = false;
+    for(const QString& line : conOut.split('\n', Qt::SkipEmptyParts)) {
+        QStringList parts = line.split(':');
+        if (parts.size() >= 2 && parts[1] == "802-11-wireless" && parts[0] == ssid) {
+            profileExists = true; 
+            break;
+        }
+    }
+
+    if (profileExists) {
+        // Try connecting as the user first (allows native access to the GNOME/KDE user keyring)
+        int exitCode = QProcess::execute("nmcli", {"con", "up", "id", ssid});
+        if (exitCode == 0) {
+            accept();
+            return;
+        }
+        
+        // If it failed (missing secrets, locked keyring, corrupted profile),
+        // we purge the broken profile to start fresh.
+        if (QProcess::execute("nmcli", {"con", "delete", "id", ssid}) != 0) {
+            QProcess::execute("pkexec", {"nmcli", "con", "delete", "id", ssid});
+        }
+    }
+
+    // 3. Establish a new connection (Prompt for password if required)
+    if (isSecure) {
+        bool ok;
+        QString pwd = QInputDialog::getText(this, "WEP/WPA Key Required",
+                                            QString("Network security key for '%1':").arg(ssid), 
+                                            QLineEdit::Password, "", &ok);
+        // Ensure user hit OK and didn't leave the password blank
+        if (ok && !pwd.isEmpty()) {
+            int connRes = QProcess::execute("nmcli", {"dev", "wifi", "connect", ssid, "password", pwd, "ifname", m_iface});
+            
+            // Fallback to pkexec if their specific Linux PolKit policy strictly mandates root
+            if (connRes != 0) {
+                QProcess::execute("pkexec", {"nmcli", "dev", "wifi", "connect", ssid, "password", pwd, "ifname", m_iface});
+            }
+        } else {
+            return; // Cancel the connection attempt
+        }
+    } else {
+        // Connect to open network
+        int connRes = QProcess::execute("nmcli", {"dev", "wifi", "connect", ssid, "ifname", m_iface});
+        if (connRes != 0) {
+            QProcess::execute("pkexec", {"nmcli", "dev", "wifi", "connect", ssid, "ifname", m_iface});
+        }
+    }
+    
+    accept();
+}
+
+// ==============================================================================
 // NetworkConnectionsPage
 // ==============================================================================
 
 NetworkConnectionsPage::NetworkConnectionsPage(QScrollArea *sidebar, QWidget *parent)
-    : QWidget(parent) 
+    : QWidget(parent), m_sidebar(sidebar)
 {
     auto *contentV = Win7::pageScaffold(this, sidebar, 20, 700);
 
@@ -1140,7 +1710,8 @@ NetworkConnectionsPage::NetworkConnectionsPage(QScrollArea *sidebar, QWidget *pa
 
     connect(m_listWidget, &QListWidget::customContextMenuRequested, this, &NetworkConnectionsPage::showContextMenu);
     connect(m_listWidget, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item){ showProperties(item); });
-
+    connect(m_listWidget, &QListWidget::itemSelectionChanged, this, &NetworkConnectionsPage::updateSidebar);
+    
     contentV->addWidget(m_listWidget);
     contentV->addStretch(1);
     refreshInterfaces();
@@ -1171,8 +1742,9 @@ void NetworkConnectionsPage::showSelectedProperties() {
     showProperties(items.first());
 }
 
+// Ensure your sidebarLinks provides the FULL static list. 
+// We will hide/show them dynamically in updateSidebar()
 QList<SidebarLink> NetworkConnectionsPage::sidebarLinks() {
-    // Helper lambda to find the active page instance at the moment of the click
     auto getPage = []() -> NetworkConnectionsPage* {
         for (QWidget *w : QApplication::topLevelWidgets()) {
             if (w->inherits("QMainWindow")) {
@@ -1183,21 +1755,21 @@ QList<SidebarLink> NetworkConnectionsPage::sidebarLinks() {
         }
         return nullptr;
     };
-
-    return {
+return {
         Nav::plain("Create a new connection"),
-
+        
+        // Default text here doesn't matter much, updateSidebar() will correct it.
         Nav::action("Disable this network device", [getPage]() {
             if (auto *page = getPage()) page->disableSelected();
         }),
-
+        
         Nav::plain("Diagnose this connection"),
         Nav::plain("Rename this connection"),
-
+        
         Nav::action("View status of this connection", [getPage]() {
             if (auto *page = getPage()) page->showSelectedStatus();
         }),
-
+        
         Nav::action("Change settings of this connection", [getPage]() {
             if (auto *page = getPage()) page->showSelectedProperties();
         }),
@@ -1213,6 +1785,10 @@ QList<SidebarLink> NetworkConnectionsPage::sidebarSeeAlso() {
 }
 
 void NetworkConnectionsPage::refreshInterfaces() {
+    QString selectedDev;
+    if (!m_listWidget->selectedItems().isEmpty()) {
+        selectedDev = m_listWidget->selectedItems().first()->data(Qt::UserRole).toString();
+    }
     m_listWidget->clear();
     
     QProcess proc;
@@ -1231,6 +1807,13 @@ void NetworkConnectionsPage::refreshInterfaces() {
         QString state = parts[2];
         
         if (type == "loopback") continue;
+
+        QNetworkInterface interface = QNetworkInterface::interfaceFromName(dev);
+        bool isUp = interface.isValid() && interface.flags().testFlag(QNetworkInterface::IsUp);
+
+        if (!isUp) {
+            state = "Disabled";
+        }
         
         QString iconName = "nm-device-wired";
 
@@ -1253,17 +1836,23 @@ void NetworkConnectionsPage::refreshInterfaces() {
             iconName = "network-vpn";
         }
         
-        // Handle limited/error states
         if (state == "connected (local only)" || state == "connected (site only)") {
             iconName = "network-wired-activated-limited";
         } else if (state == "failed") {
             iconName = "network-error";
         }
 
+        if (!isUp) {
+            if (type == "wifi" || type.contains("wireless")) {
+                iconName = "network-wireless-offline";
+            } else {
+                iconName = "network-offline";
+            }
+        }
+
         QString displayText = QString("%1\n%2").arg(dev, state);
         auto *item = new QListWidgetItem(displayText, m_listWidget);
         
-        // Load standard icon directly without symbolic override
         QIcon devIcon = QIcon::fromTheme(iconName);
         if (devIcon.isNull()) {
             devIcon = style()->standardIcon(QStyle::SP_ComputerIcon);
@@ -1272,6 +1861,19 @@ void NetworkConnectionsPage::refreshInterfaces() {
         item->setIcon(devIcon);
         item->setData(Qt::UserRole, dev);
     }
+
+    // Restore selection if the device still exists
+    if (!selectedDev.isEmpty()) {
+        for (int i = 0; i < m_listWidget->count(); ++i) {
+            if (m_listWidget->item(i)->data(Qt::UserRole).toString() == selectedDev) {
+                m_listWidget->item(i)->setSelected(true);
+                break;
+            }
+        }
+    }
+    
+    // Trigger sidebar state evaluation
+    updateSidebar();
 }
 
 void NetworkConnectionsPage::showContextMenu(const QPoint &pos) {
@@ -1312,6 +1914,7 @@ void NetworkConnectionsPage::toggleInterface(const QString &ifaceName, bool enab
 void NetworkConnectionsPage::showStatus(const QString &ifaceName) {
     ConnectionStatusDialog dlg(ifaceName, this);
     dlg.exec();
+    refreshInterfaces();
 }
 
 void NetworkConnectionsPage::showProperties(QListWidgetItem *item) {
@@ -1320,4 +1923,40 @@ void NetworkConnectionsPage::showProperties(QListWidgetItem *item) {
 
     AdapterPropertiesDialog dlg(ifaceName, interface.humanReadableName(), this);
     dlg.exec();
+    refreshInterfaces();
+}
+
+void NetworkConnectionsPage::updateSidebar() {
+    if (!m_sidebar) return;
+
+    auto items = m_listWidget->selectedItems();
+    bool hasSelection = !items.isEmpty();
+    bool isUp = false;
+
+    if (hasSelection) {
+        QString ifaceName = items.first()->data(Qt::UserRole).toString();
+        QNetworkInterface interface = QNetworkInterface::interfaceFromName(ifaceName);
+        isUp = interface.isValid() && interface.flags().testFlag(QNetworkInterface::IsUp);
+    }
+
+    // Search for the labels within the sidebar layout and hide/show them
+    QList<QLabel*> labels = m_sidebar->findChildren<QLabel*>();
+    for (QLabel *lbl : labels) {
+        QString text = lbl->text();
+        
+        // Handle Enable/Disable specifically to toggle its text
+        if (text == "Disable this network device" || text == "Enable this network device") {
+            lbl->setVisible(hasSelection);
+            if (hasSelection) {
+                lbl->setText(isUp ? "Disable this network device" : "Enable this network device");
+            }
+        } 
+        // Handle all other context-sensitive buttons
+        else if (text == "Diagnose this connection" || 
+                 text == "Rename this connection" || 
+                 text == "View status of this connection" || 
+                 text == "Change settings of this connection") {
+            lbl->setVisible(hasSelection);
+        }
+    }
 }

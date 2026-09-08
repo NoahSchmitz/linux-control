@@ -23,6 +23,7 @@ class MainWindow : public QMainWindow {
 
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+    void navigateTo(const QString &path);
 
 protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
@@ -52,7 +53,6 @@ private:
 
     void setCrumbTrail(const QStringList &trail);
     void navigateHome();
-    void navigateTo(const QString &path);
 
     // Open an in-app applet dialog (e.g. "datetime", "datetime:additional"),
     // the Windows-style modal popup for a Control Panel item.

@@ -135,6 +135,22 @@ private:
     void showDetailsDialog();
 };
 
+class QTreeWidget;
+
+class WirelessNetworksDialog : public QDialog {
+    Q_OBJECT
+public:
+    explicit WirelessNetworksDialog(const QString &ifaceName, QWidget *parent = nullptr);
+
+private:
+    QString m_iface;
+    QTreeWidget *m_tree;
+    QPushButton *m_connectBtn;
+
+    void refreshNetworks();
+    void connectToNetwork();
+};
+
 class NetworkConnectionsPage : public QWidget {
     Q_OBJECT
 public:
@@ -149,10 +165,12 @@ public:
 
 private:
     QListWidget *m_listWidget;
-
+    QScrollArea *m_sidebar;
+    
     void refreshInterfaces();
     void showContextMenu(const QPoint &pos);
     void toggleInterface(const QString &ifaceName, bool enable);
     void showStatus(const QString &ifaceName);
     void showProperties(QListWidgetItem *item);
+    void updateSidebar();
 };
