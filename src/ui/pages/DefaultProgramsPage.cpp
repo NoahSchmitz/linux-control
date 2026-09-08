@@ -19,10 +19,10 @@
 QList<SidebarLink> DefaultProgramsPage::sidebarLinks()
 {
     return {
-        Nav::command("Open File Manager", QStringList{"dolphin", "--help"}),
+        Nav::command("Open File Manager", QStringList{"thunar"}),
         Nav::plain("Choose a default web browser"),
         Nav::plain("Choose a default email program"),
-        Nav::plain("Associate a file type with a program"),
+        Nav::command("Associate a file type with a program", QStringList{"selectdefaultapplication"}),
     };
 }
 

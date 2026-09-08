@@ -15,7 +15,7 @@
 QList<SidebarLink> FolderOptionsPage::sidebarLinks()
 {
     return {
-        Nav::command("Open File Explorer", QStringList{"dolphin", "--help"}),
+        Nav::command("Open File Explorer", QStringList{"thunar"}),
         Nav::plain("Customize folders"),
         Nav::plain("Reset folder options"),
     };

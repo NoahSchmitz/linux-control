@@ -9,7 +9,7 @@ const QList<DetailGroup> &networkAndInternetGroups()
                 { "View network status and tasks",
                   "Connect to a network" },
                 { "View network computers and devices",
-                  "Add a wireless device to the network" },
+                  "Change adapter settings" },
             }
         },
         {

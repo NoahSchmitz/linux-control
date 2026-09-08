@@ -20,7 +20,7 @@
 QList<SidebarLink> HomeGroupPage::sidebarLinks()
 {
     return {
-        Nav::command("Network Settings", QStringList{"systemctl", "restart", "network"}),
+        Nav::to("Network Settings", PageId::NetworkSharing),
         Nav::plain("Change HomeGroup settings"),
         Nav::plain("Leave the HomeGroup"),
     };

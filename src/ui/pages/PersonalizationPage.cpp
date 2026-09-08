@@ -171,7 +171,7 @@ QList<SidebarLink> PersonalizationPage::sidebarLinks()
 QList<SidebarLink> PersonalizationPage::sidebarSeeAlso()
 {
     return {
-        Nav::command("Display", displaySettings()),
+        Nav::command("Display", QStringList{"deskprop"}),
         Nav::plain("Taskbar and Start Menu"),
         Nav::to("Ease of Access Center", PageId::EaseOfAccess),
     };

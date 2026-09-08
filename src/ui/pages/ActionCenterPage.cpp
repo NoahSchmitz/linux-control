@@ -55,7 +55,7 @@ QList<SidebarLink> ActionCenterPage::sidebarLinks()
 QList<SidebarLink> ActionCenterPage::sidebarSeeAlso()
 {
     return {
-        Nav::plain("Backup and Restore"),
+        Nav::to("Backup and Restore", PageId::BackupAndRestore),
         Nav::to("Linux Update", PageId::LinuxUpdate),
         Nav::to("Performance Information and Tools", PageId::Performance),
     };

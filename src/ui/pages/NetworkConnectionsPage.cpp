@@ -1896,7 +1896,7 @@ QList<SidebarLink> NetworkConnectionsPage::sidebarLinks() {
 QList<SidebarLink> NetworkConnectionsPage::sidebarSeeAlso() {
     return {
         Nav::to("Network and Sharing Center", PageId::NetworkSharing),
-        Nav::plain("Internet Options"),
+        Nav::to("Internet Options", PageId::InternetOptions),
         Nav::to("Linux Firewall", PageId::Firewall),
     };
 }

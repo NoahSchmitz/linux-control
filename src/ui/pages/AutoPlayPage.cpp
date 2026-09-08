@@ -17,9 +17,9 @@
 QList<SidebarLink> AutoPlayPage::sidebarLinks()
 {
     return {
-        Nav::command("Open File Manager", QStringList{"dolphin", "--help"}),
-        Nav::plain("Change AutoPlay settings"),
-        Nav::plain("Set defaults for all media types"),
+        Nav::command("Open File Manager", QStringList{"thunar"}),
+        Nav::command("Change AutoPlay settings", QStringList{"thunar-volman-settings"}),
+        Nav::command("Set defaults for all media types", QStringList{"selectdefaultapplication"}),
     };
 }
 

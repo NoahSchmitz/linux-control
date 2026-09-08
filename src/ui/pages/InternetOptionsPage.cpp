@@ -20,9 +20,9 @@
 QList<SidebarLink> InternetOptionsPage::sidebarLinks()
 {
     return {
-        Nav::command("Open Firefox", QStringList{"firefox", "--help"}),
-        Nav::command("Open Chrome", QStringList{"google-chrome", "--help"}),
-        Nav::plain("Manage add-ons"),
+        Nav::command("Open Firefox", QStringList{"firefox"}),
+        // Nav::command("Open Chrome", QStringList{"google-chrome", "--help"}),
+        Nav::command("Manage add-ons", QStringList{"firefox", "about:addons"}),
         Nav::plain("Reset Internet settings"),
     };
 }

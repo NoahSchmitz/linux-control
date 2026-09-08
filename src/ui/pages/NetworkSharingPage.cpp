@@ -93,8 +93,8 @@ QList<SidebarLink> NetworkSharingPage::sidebarLinks()
 QList<SidebarLink> NetworkSharingPage::sidebarSeeAlso()
 {
     return {
-        Nav::plain("HomeGroup"),
-        Nav::plain("Internet Options"),
+        Nav::to("HomeGroup", PageId::HomeGroup),
+        Nav::to("Internet Options", PageId::InternetOptions),
         Nav::to("Linux Firewall", PageId::Firewall),
     };
 }
@@ -391,11 +391,11 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
     // "Change your networking settings" heading + tasks
     addHeading("Change your networking settings", QString());
 
-    addTask(contentV, {"network-wired", "preferences-system-network",
-                       "list-add"},
-            "Set up a new connection or network",
-            "Set up a wireless, broadband, dial-up, ad hoc, or VPN connection; "
-            "or set up a router or access point.");
+    // addTask(contentV, {"network-wired", "preferences-system-network",
+    //                    "list-add"},
+    //         "Set up a new connection or network",
+    //         "Set up a wireless, broadband, dial-up, ad hoc, or VPN connection; "
+    //         "or set up a router or access point.");
 
     addTask(contentV, {"network-wireless", "network-connect",
                        "preferences-system-network"},

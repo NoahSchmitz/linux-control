@@ -929,6 +929,7 @@ QWidget *MainWindow::buildHomePage()
                     static const QHash<QString, QString> knownTaskPaths = {
                         { "Uninstall a program",           kProgramsFeaturesPath },
                         { "View network status and tasks", kNetworkSharingPath },
+                        { "View network computers and devices",  kNetworkMapPath},
                         { "Add or remove user accounts",   kUserAccountsPath },
                         { "Change the theme",              kPersonalizationPath },
                         { "Let Linux suggest settings",    kEaseOfAccessPath },
@@ -1356,6 +1357,10 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             m_subpageLinks.insert(l, kFirewallPath);
         else if (text == "View network status and tasks")
             m_subpageLinks.insert(l, kNetworkSharingPath);
+        else if (text == "View network computers and devices")
+            m_subpageLinks.insert(l, kNetworkMapPath);
+        else if (text == "Change adapter settings")
+            m_subpageLinks.insert(l, kNetworkConnectionsPath);
         else if (text == "Choose a power plan")
             m_subpageLinks.insert(l, kPowerOptionsPath);
         else if (text == "Uninstall a program")

@@ -5,7 +5,10 @@
 #include <QString>
 #include <QListWidget>
 #include <QScrollArea>
+
 #include "PageId.h"
+#include "Win7Ui.h"
+#include "Commands.h"
 
 // Forward declarations
 class QRadioButton;
