@@ -1844,45 +1844,18 @@ void NetworkConnectionsPage::showSelectedProperties() {
 }
 
 void NetworkConnectionsPage::showWirelessNetworks() {
-    QString ifaceToUse;
+    QString selectedIface;
     auto items = m_listWidget->selectedItems();
     
-    // If an adapter is currently selected, verify it is a Wi-Fi adapter
     if (!items.isEmpty()) {
-        QString selectedIface = items.first()->data(Qt::UserRole).toString();
-        QProcess typeProc;
-        typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE", "dev", "show", selectedIface});
-        typeProc.waitForFinished();
-        
-        if (QString::fromUtf8(typeProc.readAllStandardOutput()).toLower().contains("wifi")) {
-            ifaceToUse = selectedIface;
-        }
-    }
-    
-    // If no valid Wi-Fi adapter was selected, automatically hunt for the first one
-    if (ifaceToUse.isEmpty()) {
-        QProcess proc;
-        proc.start("nmcli", {"-t", "-f", "DEVICE,TYPE", "dev", "status"});
-        proc.waitForFinished();
-        QString out = QString::fromUtf8(proc.readAllStandardOutput());
-        for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
-            QStringList parts = line.split(':');
-            if (parts.size() >= 2 && parts[1].toLower() == "wifi") {
-                ifaceToUse = parts[0];
-                break;
-            }
-        }
+        selectedIface = items.first()->data(Qt::UserRole).toString();
     }
 
-    // Launch the dialog if a target interface was successfully identified
-    if (!ifaceToUse.isEmpty()) {
-        WirelessNetworksDialog dlg(ifaceToUse, this);
-        dlg.exec();
-        refreshInterfaces();
-    } else {
-        QMessageBox::information(this, "No Wireless Adapters", 
-                                 "No wireless network adapters were found on this system.");
-    }
+    // Pass the selection to the helper (it handles validating if it's wifi or finding a fallback)
+    openWirelessNetworksDialog(this, selectedIface);
+    
+    // Refresh the list when the dialog closes
+    refreshInterfaces();
 }
 
 // Ensure your sidebarLinks provides the FULL static list. 
@@ -2130,5 +2103,47 @@ void NetworkConnectionsPage::updateSidebar() {
                  text == "Change settings of this connection") {
             lbl->setVisible(hasSelection);
         }
+    }
+}
+
+void NetworkConnectionsPage::openWirelessNetworksDialog(QWidget *parent, QString ifaceToUse) {
+    // If an interface was passed in, verify it is actually a Wi-Fi adapter
+    if (!ifaceToUse.isEmpty()) {
+        QProcess typeProc;
+        typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE", "dev", "show", ifaceToUse});
+        typeProc.waitForFinished();
+        if (!QString::fromUtf8(typeProc.readAllStandardOutput()).toLower().contains("wifi")) {
+            ifaceToUse.clear(); // Clear it so we fall back to auto-detecting below
+        }
+    }
+
+    // If no valid Wi-Fi adapter was provided, automatically hunt for the first one
+    if (ifaceToUse.isEmpty()) {
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "DEVICE,TYPE", "dev", "status"});
+        proc.waitForFinished();
+        QString out = QString::fromUtf8(proc.readAllStandardOutput());
+        for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+            QStringList parts = line.split(':');
+            if (parts.size() >= 2 && parts[1].toLower() == "wifi") {
+                ifaceToUse = parts[0];
+                break;
+            }
+        }
+    }
+
+    if (!ifaceToUse.isEmpty()) {
+        WirelessNetworksDialog dlg(ifaceToUse, parent);
+        dlg.exec();
+    } else {
+        QMessageBox::information(parent, "No Wireless Adapters", 
+                                 "No wireless network adapters were found on this system.");
+    }
+}
+
+void NetworkConnectionsPage::openConnectionStatusDialog(const QString &ifaceName, QWidget *parent) {
+    if (!ifaceName.isEmpty()) {
+        ConnectionStatusDialog dlg(ifaceName, parent);
+        dlg.exec();
     }
 }

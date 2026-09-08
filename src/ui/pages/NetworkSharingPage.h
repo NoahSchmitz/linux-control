@@ -56,5 +56,6 @@ class NetworkSharingPage : public QWidget {
         // Adds one "Change your networking settings" task: icon + blue title link
         // with a grey description line beneath.
         void addTask(QVBoxLayout *into, const QStringList &iconNames,
-                    const QString &title, const QString &description);
+                 const QString &title, const QString &description, 
+                 const QString &objName = QString());
 };

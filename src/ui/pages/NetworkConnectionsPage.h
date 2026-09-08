@@ -5,8 +5,6 @@
 #include <QString>
 #include <QListWidget>
 #include <QScrollArea>
-#include "Win7Ui.h"
-#include "Commands.h"
 #include "PageId.h"
 
 // Forward declarations
@@ -163,6 +161,8 @@ public:
     void showSelectedStatus();
     void showSelectedProperties();
     void showWirelessNetworks();
+    static void openWirelessNetworksDialog(QWidget *parent, QString ifaceToUse = QString());
+    static void openConnectionStatusDialog(const QString &ifaceName, QWidget *parent);
 
 private:
     QListWidget *m_listWidget;

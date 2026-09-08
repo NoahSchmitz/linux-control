@@ -3,6 +3,8 @@
 #include "IconHelper.h"
 #include "Win7Ui.h"
 #include "NetworkConnectionsPage.h"
+#include "../MainWindow.h"
+#include "PageRegistry.h"
 
 #include <QScrollArea>
 #include <QLabel>
@@ -15,9 +17,9 @@
 #include <QDir>
 #include <QHostInfo>
 #include <QSysInfo>
-#include <QCoreApplication>
 #include <QProcess>
 #include <QMouseEvent>
+#include <QApplication>
 
 // Data gathering
 // The interface backing the default route, read from /proc/net/route. Each line
@@ -164,7 +166,8 @@ QWidget *NetworkSharingPage::buildMapLink(bool active)
 
 // Task helper
 void NetworkSharingPage::addTask(QVBoxLayout *into, const QStringList &iconNames,
-                                 const QString &title, const QString &description)
+                                 const QString &title, const QString &description,
+                                 const QString &objName)
 {
     auto *row = new QHBoxLayout;
     row->setContentsMargins(0, 0, 0, 0);
@@ -188,7 +191,16 @@ void NetworkSharingPage::addTask(QVBoxLayout *into, const QStringList &iconNames
     textCol->setContentsMargins(0, 0, 0, 0);
     textCol->setSpacing(1);
 
-    textCol->addWidget(Win7::bodyLabel(title, /*link=*/true));
+    auto *titleLbl = Win7::bodyLabel(title, /*link=*/true);
+
+    // Wire up interactivity immediately if an object name is provided
+    if (!objName.isEmpty()) {
+        titleLbl->setObjectName(objName);
+        titleLbl->setCursor(Qt::PointingHandCursor);
+        titleLbl->installEventFilter(this);
+    }
+    
+    textCol->addWidget(titleLbl);
 
     auto *descLabel = Win7::label(description, 9, "#333333");
     descLabel->setWordWrap(true);
@@ -359,8 +371,13 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
     connIcon->setStyleSheet("background: transparent;");
     connH->addWidget(connIcon, 0, Qt::AlignVCenter);
 
-    connH->addWidget(Win7::bodyLabel(info.connectionName, /*link=*/true),
-                     0, Qt::AlignVCenter);
+    auto *connLbl = Win7::bodyLabel(info.connectionName, /*link=*/true);
+    connLbl->setCursor(Qt::PointingHandCursor);
+    connLbl->setObjectName("activeConnectionBtn");
+    connLbl->setProperty("ifaceName", defaultRouteInterface()); // Store active iface
+    connLbl->installEventFilter(this);
+    connH->addWidget(connLbl, 0, Qt::AlignVCenter);
+
     connH->addStretch(1);
 
     detailGrid->addWidget(connCell, 1, 1, Qt::AlignLeft | Qt::AlignVCenter);
@@ -384,13 +401,15 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
                        "preferences-system-network"},
             "Connect to a network",
             "Connect or reconnect to a wireless, wired, dial-up, or VPN network "
-            "connection.");
+            "connection.",
+            "connectToNetworkTaskBtn");
 
     addTask(contentV, {"network-type-home", "network-workgroup", "system-users",
                        "preferences-system-network"},
             "Choose homegroup and sharing options",
             "Access files and printers located on other network computers, or "
-            "change sharing settings.");
+            "change sharing settings.",
+            "homeGroupTaskBtn");
 
     addTask(contentV, {"system-help", "help-browser", "tools-wizard",
                        "preferences-system"},
@@ -403,7 +422,13 @@ NetworkSharingPage::NetworkSharingPage(QScrollArea *sidebar, QWidget *parent)
 
 bool NetworkSharingPage::eventFilter(QObject *watched, QEvent *event)
 {
-    if (watched == m_fullMapLabel || watched->objectName() == QStringLiteral("connectDisconnectBtn")) {
+    QString objName = watched->objectName();
+    if (watched == m_fullMapLabel || 
+        objName == "connectDisconnectBtn" || 
+        objName == "activeConnectionBtn" || 
+        objName == "connectToNetworkTaskBtn" ||
+        objName == "homeGroupTaskBtn")
+    {
         // Handle Hover Underline
         if (event->type() == QEvent::Enter || event->type() == QEvent::Leave) {
             auto *label = static_cast<QLabel *>(watched);
@@ -418,10 +443,21 @@ bool NetworkSharingPage::eventFilter(QObject *watched, QEvent *event)
             if (me->button() == Qt::LeftButton) {
                 if (watched == m_fullMapLabel) {
                     emit viewFullMapRequested();
-                } else if (watched->objectName() == QStringLiteral("connectDisconnectBtn")) {
-                    // Send simulated mouse click to the sfwbar network icon
-                    QString hackyCmd = "ydotool mousemove -a -x 1440 -y 1000 ; sleep 0.1 ; ydotool click 0x40 ; sleep 0.05 ; ydotool click 0x80";
-                    QProcess::startDetached("bash", QStringList() << "-c" << hackyCmd);
+                } else if (objName == "activeConnectionBtn") {
+                    QString iface = watched->property("ifaceName").toString();
+                    NetworkConnectionsPage::openConnectionStatusDialog(iface, this);
+                } else if (objName == "connectDisconnectBtn" || objName == "connectToNetworkTaskBtn") {
+                    NetworkConnectionsPage::openWirelessNetworksDialog(this);
+                } else if (objName == "homeGroupTaskBtn") {
+                    // Search up the tree for the MainWindow to execute the route change
+                    for (QWidget *w : QApplication::topLevelWidgets()) {
+                        if (auto *mainWindow = qobject_cast<MainWindow*>(w)) {
+                            QMetaObject::invokeMethod(mainWindow, [mainWindow]() {
+                                mainWindow->navigateTo(PageRegistry::pathFor(PageId::HomeGroup));
+                            }, Qt::QueuedConnection);
+                            break;
+                        }
+                    }
                 }
                 return true;
             }

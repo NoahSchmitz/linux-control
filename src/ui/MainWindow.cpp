@@ -1360,6 +1360,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             m_subpageLinks.insert(l, kPowerOptionsPath);
         else if (text == "Uninstall a program")
             m_subpageLinks.insert(l, kProgramsFeaturesPath);
+        else if (text == "Connect to a network")
+            m_actionLinks.insert(l, [this]() { NetworkConnectionsPage::openWirelessNetworksDialog(this); });
         else if (text == "Add gadgets to the desktop")
             m_commandLinks.insert(l, kWidgetExplorerCmd);
         else if (text == "Get more gadgets online")
