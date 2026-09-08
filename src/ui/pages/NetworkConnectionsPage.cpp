@@ -36,6 +36,67 @@
 #include "PageRegistry.h"
 
 // ==============================================================================
+// WirelessConfigureDialog
+// ==============================================================================
+
+class WirelessConfigureDialog : public QDialog {
+public:
+    explicit WirelessConfigureDialog(const QString &ifaceName, QWidget *parent = nullptr) 
+        : QDialog(parent) 
+    {
+        setWindowTitle(QString("%1 Configuration").arg(ifaceName));
+        resize(420, 200); // Increased size to prevent clipping
+
+        auto *layout = new QVBoxLayout(this);
+        auto *groupBox = new QGroupBox("Radio Power Management", this);
+        auto *groupLayout = new QVBoxLayout(groupBox);
+
+        auto *desc = new QLabel("This controls the physical and software radio state of the adapter.", this);
+        desc->setWordWrap(true);
+        desc->setMinimumHeight(40); // Ensures enough vertical space for word wrap
+        groupLayout->addWidget(desc);
+        groupLayout->addSpacing(10);
+
+        auto *rfkillCb = new QCheckBox("Enable Wi-Fi Radio (rfkill)", this);
+        groupLayout->addWidget(rfkillCb);
+
+        layout->addWidget(groupBox);
+        layout->addStretch();
+
+        auto *btnBox = new QHBoxLayout();
+        btnBox->addStretch();
+        auto *okBtn = new QPushButton("OK", this);
+        auto *cancelBtn = new QPushButton("Cancel", this);
+        btnBox->addWidget(okBtn);
+        btnBox->addWidget(cancelBtn);
+        layout->addLayout(btnBox);
+
+        // Fetch current rfkill state
+        QProcess proc;
+        proc.start("rfkill", {"list", "wlan"});
+        proc.waitForFinished();
+        QString out = QString::fromUtf8(proc.readAllStandardOutput());
+
+        bool isSoftBlocked = out.contains("Soft blocked: yes");
+        bool isHardBlocked = out.contains("Hard blocked: yes");
+
+        rfkillCb->setChecked(!isSoftBlocked && !isHardBlocked);
+        
+        if (isHardBlocked) {
+            rfkillCb->setEnabled(false);
+            rfkillCb->setText("Radio is hardware-blocked (check physical switch)");
+        }
+
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        connect(okBtn, &QPushButton::clicked, this, [this, rfkillCb]() {
+            QString action = rfkillCb->isChecked() ? "unblock" : "block";
+            QProcess::execute("pkexec", {"rfkill", action, "wlan"});
+            accept();
+        });
+    }
+};
+
+// ==============================================================================
 // IPv4PropertiesDialog
 // ==============================================================================
 
@@ -510,6 +571,25 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     setWindowTitle(QString("%1 Properties").arg(ifaceName));
     resize(400, 520);
 
+    // Determine if the interface is Wi-Fi and if it is currently connected
+    QProcess typeProc;
+    typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE,GENERAL.CONNECTION", "dev", "show", m_ifaceName});
+    typeProc.waitForFinished();
+    QString devOutput = QString::fromUtf8(typeProc.readAllStandardOutput());
+    
+    bool isWifi = false;
+    bool isConnected = false;
+    QString activeCon;
+
+    for (const QString &line : devOutput.split('\n', Qt::SkipEmptyParts)) {
+        if (line.startsWith("GENERAL.TYPE:")) {
+            isWifi = line.mid(13).toLower().contains("wifi");
+        } else if (line.startsWith("GENERAL.CONNECTION:")) {
+            activeCon = line.mid(19).trimmed();
+            isConnected = (!activeCon.isEmpty() && activeCon != "--");
+        }
+    }
+
     auto *mainLayout = new QVBoxLayout(this);
     
     auto *tabWidget = new QTabWidget(this);
@@ -526,7 +606,16 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     iconLabel->setPixmap(myIcon.pixmap(16, 16));
     adapterRow->addWidget(iconLabel);
     adapterRow->addWidget(new QLabel(hardwareName, netTab), 1);
+    
     auto *configBtn = new QPushButton("Configure...", netTab);
+    if (isWifi) {
+        connect(configBtn, &QPushButton::clicked, this, [this]() {
+            WirelessConfigureDialog dlg(m_ifaceName, this);
+            dlg.exec();
+        });
+    } else {
+        configBtn->setEnabled(false); 
+    }
     adapterRow->addWidget(configBtn);
     netLayout->addLayout(adapterRow);
 
@@ -570,25 +659,6 @@ AdapterPropertiesDialog::AdapterPropertiesDialog(const QString &ifaceName, const
     netLayout->addWidget(descGroup);
 
     tabWidget->addTab(netTab, "General");
-
-// Determine if the interface is Wi-Fi and if it is currently connected
-    QProcess typeProc;
-    typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE,GENERAL.CONNECTION", "dev", "show", m_ifaceName});
-    typeProc.waitForFinished();
-    QString devOutput = QString::fromUtf8(typeProc.readAllStandardOutput());
-    
-    bool isWifi = false;
-    bool isConnected = false;
-    QString activeCon;
-
-    for (const QString &line : devOutput.split('\n', Qt::SkipEmptyParts)) {
-        if (line.startsWith("GENERAL.TYPE:")) {
-            isWifi = line.mid(13).toLower().contains("wifi");
-        } else if (line.startsWith("GENERAL.CONNECTION:")) {
-            activeCon = line.mid(19).trimmed();
-            isConnected = (!activeCon.isEmpty() && activeCon != "--");
-        }
-    }
 
     auto *authTab = new QWidget(tabWidget);
 
@@ -1560,26 +1630,54 @@ void WirelessNetworksDialog::refreshNetworks() {
     m_connectBtn->setText("Connect");
 
     QProcess p;
-    p.start("nmcli", {"-t", "-f", "IN-USE,SSID,SECURITY,SIGNAL", "dev", "wifi", "list", "ifname", m_iface});
+    p.start("nmcli", {"-t", "-f", "ACTIVE,SSID,SECURITY,SIGNAL", "dev", "wifi", "list", "ifname", m_iface});
     p.waitForFinished();
     QString out = QString::fromUtf8(p.readAllStandardOutput());
     
-    QSet<QString> seenSSIDs;
+    QMap<QString, QTreeWidgetItem*> ssidItems;
+    
     for (const QString& line : out.split('\n', Qt::SkipEmptyParts)) {
         QStringList parts = line.split(':');
         if (parts.size() >= 4) {
-            bool inUse = (parts[0].trimmed() == "*");
-            QString ssid = parts[1].trimmed();
-            QString sec = parts[2].trimmed();
-            int signal = parts[3].toInt();
+            bool inUse = (parts.first().trimmed().toLower() == "yes" || parts.first().trimmed() == "*");
+            
+            // Safely extract from back-to-front to avoid breaking on SSIDs with colons
+            int signal = parts.last().toInt();
+            QString sec = parts[parts.size() - 2].trimmed();
+            QString ssid = parts.mid(1, parts.size() - 3).join(':').trimmed();
+            ssid.replace("\\:", ":"); // Remove nmcli escapes if present
 
-            if (ssid.isEmpty() || seenSSIDs.contains(ssid)) continue;
-            seenSSIDs.insert(ssid);
+            if (ssid.isEmpty()) continue;
 
+            // If we have already added this SSID to the list, we need to update it
+            // if this specific access point is the actively connected one, or if it's stronger.
+            if (ssidItems.contains(ssid)) {
+                QTreeWidgetItem *item = ssidItems[ssid];
+                
+                if (inUse) {
+                    item->setText(1, "Connected");
+                    item->setData(0, Qt::UserRole + 2, true);
+                    
+                    QFont f = item->font(0);
+                    f.setBold(true);
+                    item->setFont(0, f);
+                    item->setFont(1, f);
+                    item->setFont(2, f);
+                } 
+                
+                // Always display the strongest signal found for this SSID
+                int oldSignal = item->text(2).remove('%').toInt();
+                if (signal > oldSignal) {
+                    item->setText(2, QString("%1%").arg(signal));
+                }
+                
+                continue; // Skip adding a duplicate row
+            }
+
+            // Otherwise, it's a new SSID. Set it up.
             bool isSecure = !(sec.isEmpty() || sec == "--" || sec.contains("Open", Qt::CaseInsensitive));
             QString secText = isSecure ? sec : "None";
             
-            // Override security text if this is the active connection
             if (inUse) {
                 secText = "Connected";
             }
@@ -1605,6 +1703,9 @@ void WirelessNetworksDialog::refreshNetworks() {
                 item->setFont(1, f);
                 item->setFont(2, f);
             }
+            
+            // Track the item so we can update it if another AP broadcasts the same name
+            ssidItems.insert(ssid, item);
         }
     }
     
@@ -1742,6 +1843,48 @@ void NetworkConnectionsPage::showSelectedProperties() {
     showProperties(items.first());
 }
 
+void NetworkConnectionsPage::showWirelessNetworks() {
+    QString ifaceToUse;
+    auto items = m_listWidget->selectedItems();
+    
+    // If an adapter is currently selected, verify it is a Wi-Fi adapter
+    if (!items.isEmpty()) {
+        QString selectedIface = items.first()->data(Qt::UserRole).toString();
+        QProcess typeProc;
+        typeProc.start("nmcli", {"-t", "-f", "GENERAL.TYPE", "dev", "show", selectedIface});
+        typeProc.waitForFinished();
+        
+        if (QString::fromUtf8(typeProc.readAllStandardOutput()).toLower().contains("wifi")) {
+            ifaceToUse = selectedIface;
+        }
+    }
+    
+    // If no valid Wi-Fi adapter was selected, automatically hunt for the first one
+    if (ifaceToUse.isEmpty()) {
+        QProcess proc;
+        proc.start("nmcli", {"-t", "-f", "DEVICE,TYPE", "dev", "status"});
+        proc.waitForFinished();
+        QString out = QString::fromUtf8(proc.readAllStandardOutput());
+        for (const QString &line : out.split('\n', Qt::SkipEmptyParts)) {
+            QStringList parts = line.split(':');
+            if (parts.size() >= 2 && parts[1].toLower() == "wifi") {
+                ifaceToUse = parts[0];
+                break;
+            }
+        }
+    }
+
+    // Launch the dialog if a target interface was successfully identified
+    if (!ifaceToUse.isEmpty()) {
+        WirelessNetworksDialog dlg(ifaceToUse, this);
+        dlg.exec();
+        refreshInterfaces();
+    } else {
+        QMessageBox::information(this, "No Wireless Adapters", 
+                                 "No wireless network adapters were found on this system.");
+    }
+}
+
 // Ensure your sidebarLinks provides the FULL static list. 
 // We will hide/show them dynamically in updateSidebar()
 QList<SidebarLink> NetworkConnectionsPage::sidebarLinks() {
@@ -1755,10 +1898,11 @@ QList<SidebarLink> NetworkConnectionsPage::sidebarLinks() {
         }
         return nullptr;
     };
-return {
-        Nav::plain("Create a new connection"),
-        
-        // Default text here doesn't matter much, updateSidebar() will correct it.
+    return {
+        Nav::action("Connect or disconnect from a network", [getPage]() {
+            if (auto *page = getPage()) page->showWirelessNetworks();
+        }),
+
         Nav::action("Disable this network device", [getPage]() {
             if (auto *page = getPage()) page->disableSelected();
         }),
@@ -1906,8 +2050,36 @@ void NetworkConnectionsPage::showContextMenu(const QPoint &pos) {
 
 void NetworkConnectionsPage::toggleInterface(const QString &ifaceName, bool enable) {
     QString state = enable ? "up" : "down";
-    QString cmd = QString("pkexec ip link set %1 %2").arg(ifaceName, state);
-    QProcess::execute("/bin/sh", QStringList() << "-c" << cmd);
+
+    QProcess proc;
+    proc.start("pkexec", {"ip", "link", "set", ifaceName, state});
+    proc.waitForFinished();
+
+    // Capture any error messages printed to stderr
+    QString errOutput = QString::fromUtf8(proc.readAllStandardError());
+
+    if (enable && errOutput.contains("Operation not possible due to RF-kill", Qt::CaseInsensitive)) {
+        // Determine if the block is hardware or software
+        QProcess rfProc;
+        rfProc.start("rfkill", {"list", "wlan"});
+        rfProc.waitForFinished();
+        QString rfOut = QString::fromUtf8(rfProc.readAllStandardOutput());
+
+        if (rfOut.contains("Hard blocked: yes")) {
+            QMessageBox::warning(this, "Radio Hardware-Disabled", 
+                "The wireless radio is hardware-disabled.\n\nPlease check for a physical Wi-Fi switch or keyboard shortcut on your device to turn it back on.");
+        } else {
+            QMessageBox::StandardButton reply = QMessageBox::question(this, "Radio Disabled",
+                "The wireless radio is currently turned off (RF-kill).\n\nWould you like to re-power the radio now?",
+                QMessageBox::Yes | QMessageBox::No);
+
+            if (reply == QMessageBox::Yes) {
+                QProcess::execute("pkexec", {"rfkill", "unblock", "all"});
+                QProcess::execute("pkexec", {"ip", "link", "set", ifaceName, "up"});
+            }
+        }
+    }
+
     refreshInterfaces();
 }
 

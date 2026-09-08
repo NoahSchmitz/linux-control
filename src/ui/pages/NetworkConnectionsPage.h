@@ -162,6 +162,7 @@ public:
     void disableSelected();
     void showSelectedStatus();
     void showSelectedProperties();
+    void showWirelessNetworks();
 
 private:
     QListWidget *m_listWidget;
