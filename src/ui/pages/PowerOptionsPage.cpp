@@ -333,7 +333,23 @@ QWidget *PowerOptionsPage::buildPlanRow(const Plan &plan)
     auto *radio = new QRadioButton;
     radio->setProperty("profileId", plan.profileId);
     radio->setCursor(Qt::PointingHandCursor);
-    radio->setStyleSheet("QRadioButton { background: transparent; }");
+    radio->setStyleSheet(
+        "QRadioButton { "
+        "    background: transparent; "
+        "} "
+        "QRadioButton::indicator { "
+        "    width: 12px; "
+        "    height: 12px; "
+        "    border-radius: 7px; "
+        "    background: #FFFFFF; "
+        "    border: 1px solid #808080; "
+        "} "
+        "QRadioButton::indicator:checked { "
+        "    background: qradialgradient(cx:0.5, cy:0.5, radius:0.5, fx:0.5, fy:0.5, "
+        "                stop:0 #000000, stop:0.35 #000000, "
+        "                stop:0.4 #ffffff, stop:.9 #ffffff); "
+        "}"
+    );
     m_group->addButton(radio);
     rowH->addWidget(radio, 0, Qt::AlignTop);
 
@@ -364,17 +380,17 @@ QWidget *PowerOptionsPage::buildPlanRow(const Plan &plan)
     nameLine->addWidget(name, 0, Qt::AlignVCenter);
     nameLine->addStretch(1);
 
-    auto *change = new QLabel("Change plan settings");
-    {
-        QFont f = change->font();
-        f.setPointSize(9);
-        change->setFont(f);
-    }
-    change->setCursor(Qt::PointingHandCursor);
-    change->setStyleSheet(
-        "QLabel { color: #1F4E99; background: transparent; }"
-        "QLabel:hover { color: #000080; }");
-    nameLine->addWidget(change, 0, Qt::AlignVCenter);
+    // auto *change = new QLabel("Change plan settings");
+    // {
+    //     QFont f = change->font();
+    //     f.setPointSize(9);
+    //     change->setFont(f);
+    // }
+    // change->setCursor(Qt::PointingHandCursor);
+    // change->setStyleSheet(
+    //     "QLabel { color: #1F4E99; background: transparent; }"
+    //     "QLabel:hover { color: #000080; }");
+    // nameLine->addWidget(change, 0, Qt::AlignVCenter);
 
     textV->addLayout(nameLine);
 

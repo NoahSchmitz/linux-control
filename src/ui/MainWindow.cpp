@@ -32,6 +32,8 @@
 #include <QStandardPaths>
 // #include <QDebug>
 #include <QMessageBox>
+#include <QCommandLineParser>
+
 #include "Categories.h"
 #include "Branding.h"
 #include "PageId.h"
@@ -100,7 +102,20 @@ MainWindow::MainWindow(QWidget *parent)
     m_scroll->setStyleSheet("QScrollArea { background: #FFFFFF; }");
     mainLayout->addWidget(m_scroll, 1);
 
-    navigateHome();
+    // Replace navigateHome(); with:
+    QCommandLineParser parser;
+    parser.addHelpOption();
+    parser.addPositionalArgument("path", "The control panel path to open directly");
+    
+    // qApp is a global pointer to the QApplication instance
+    parser.process(*qApp);
+
+    const QStringList args = parser.positionalArguments();
+    if (!args.isEmpty()) {
+        navigateTo(args.first());
+    } else {
+        navigateHome();
+    }
 
     setCentralWidget(central);
     statusBar()->hide();
