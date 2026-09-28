@@ -314,7 +314,7 @@ public:
         auto *bannerLayout = new QVBoxLayout(leftBanner);
         auto *iconLabel = new QLabel;
         // Using an asterisk or keys as a stand-in for the classic win2k box icon
-        iconLabel->setPixmap(themeIcon({"preferences-desktop-user-password", "dialog-password"}).pixmap(64, 64));
+        iconLabel->setPixmap(themeIcon({"preferences-desktop-user", "dialog-password"}).pixmap(64, 64));
         iconLabel->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
         bannerLayout->addWidget(iconLabel);
         bannerLayout->addStretch();
@@ -459,7 +459,7 @@ public:
         pwLayout->setContentsMargins(10, 15, 10, 10);
         
         auto *pwIcon = new QLabel;
-        pwIcon->setPixmap(themeIcon({"preferences-desktop-user-password"}).pixmap(32, 32));
+        pwIcon->setPixmap(themeIcon({"dialog-password"}).pixmap(32, 32));
         pwLayout->addWidget(pwIcon, 0, Qt::AlignTop);
 
         auto *pwRight = new QVBoxLayout;
@@ -651,8 +651,7 @@ QList<SidebarLink> UserAccountsPage::sidebarLinks()
 {
     return {
         Nav::action("Manage another account", []() {
-            UsersAndPasswordsDialog dlg(nullptr);
-            dlg.exec();
+            UserAccountsPage::promptManageAccounts(nullptr);
         }),
         Nav::command("Change User Account Control settings", userAccounts()),
     };
@@ -676,7 +675,7 @@ static QPixmap avatarPixmap(const QString &path, int size)
         src.load(path);
     if (src.isNull())
         src = themeIcon({"user-identity", "avatar-default",
-                         "system-users"}).pixmap(size, size);
+                         "user-info"}).pixmap(size, size);
 
     QPixmap out(size, size);
     out.fill(Qt::transparent);
@@ -696,6 +695,30 @@ static QPixmap avatarPixmap(const QString &path, int size)
     p.setBrush(Qt::NoBrush);
     p.drawRoundedRect(QRectF(0.5, 0.5, size - 1, size - 1), 6, 6);
     return out;
+}
+
+// ----------------------------------------------------------------------------
+// Static Launchers for MainWindow Category Links
+// ----------------------------------------------------------------------------
+void UserAccountsPage::promptChangePassword(QWidget* parent) {
+    Account acct = gatherAccount();
+    SetPasswordDialog pwDlg(acct.userName, parent);
+    pwDlg.exec();
+}
+
+void UserAccountsPage::promptChangePicture(QWidget* parent) {
+    QString file = QFileDialog::getOpenFileName(parent, "Choose a picture", QDir::homePath(), "Images (*.png *.jpg *.jpeg)");
+    if (!file.isEmpty()) {
+        QFile::remove(QDir::homePath() + "/.face");
+        QFile::copy(file, QDir::homePath() + "/.face");
+        QFile::remove(QDir::homePath() + "/.face.icon");
+        QFile::copy(file, QDir::homePath() + "/.face.icon");
+    }
+}
+
+void UserAccountsPage::promptManageAccounts(QWidget* parent) {
+    UsersAndPasswordsDialog dlg(parent);
+    dlg.exec();
 }
 
 // ----------------------------------------------------------------------------
@@ -726,23 +749,15 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
 
     // --- Task 1: Change Password ---
     auto *pwdLink = new LinkLabel("Change your password");
-    QObject::connect(pwdLink, &LinkLabel::clicked, this, [this, acct]() {
-        SetPasswordDialog pwDlg(acct.userName, this);
-        pwDlg.exec();
+    QObject::connect(pwdLink, &LinkLabel::clicked, this, [this]() {
+        UserAccountsPage::promptChangePassword(this);
     });
     tasks->addWidget(pwdLink, 0, Qt::AlignLeft);
 
     // --- Task 2: Change Picture ---
     auto *picLink = new LinkLabel("Change your picture");
     QObject::connect(picLink, &LinkLabel::clicked, this, [this]() {
-        QString file = QFileDialog::getOpenFileName(this, "Choose a picture", QDir::homePath(), "Images (*.png *.jpg *.jpeg)");
-        if (!file.isEmpty()) {
-            // Write to legacy .face file standard used by display managers
-            QFile::remove(QDir::homePath() + "/.face");
-            QFile::copy(file, QDir::homePath() + "/.face");
-            QFile::remove(QDir::homePath() + "/.face.icon");
-            QFile::copy(file, QDir::homePath() + "/.face.icon");
-        }
+        UserAccountsPage::promptChangePicture(this);
     });
     tasks->addWidget(picLink, 0, Qt::AlignLeft);
 
@@ -767,8 +782,7 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     // --- Task 5: Manage another account ---
     auto *manageLink = new LinkLabel("Manage another account");
     QObject::connect(manageLink, &LinkLabel::clicked, this, [this]() {
-        UsersAndPasswordsDialog dlg(this);
-        dlg.exec();
+        UserAccountsPage::promptManageAccounts(this);
     });
     tasks->addWidget(manageLink, 0, Qt::AlignLeft);
 

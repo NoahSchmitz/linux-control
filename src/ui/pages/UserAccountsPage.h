@@ -25,7 +25,10 @@ public:
 
     static QList<SidebarLink> sidebarLinks();
     static QList<SidebarLink> sidebarSeeAlso();
-
+    static void promptChangePassword(QWidget* parent);
+    static void promptChangePicture(QWidget* parent);
+    static void promptManageAccounts(QWidget* parent);
+    
 private:
     struct Account {
         QString userName;      // login name

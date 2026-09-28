@@ -949,11 +949,16 @@ QWidget *MainWindow::buildHomePage()
                         }
                         return;
                     }
+
+                    if (task == "Add or remove user accounts") {
+                        UserAccountsPage::promptManageAccounts(this);
+                        return;
+                    }
+
                     static const QHash<QString, QString> knownTaskPaths = {
                         { "Uninstall a program",           kProgramsFeaturesPath },
                         { "View network status and tasks", kNetworkSharingPath },
                         { "View network computers and devices",  kNetworkMapPath},
-                        { "Add or remove user accounts",   kUserAccountsPath },
                         { "Change the theme",              kPersonalizationPath },
                         { "Let Linux suggest settings",    kEaseOfAccessPath },
                         { "Optimize visual display",       kEaseOfAccessPath },
@@ -1401,6 +1406,13 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
         else if (text == "Device Manager")
             m_commandLinks.insert(l, deviceManager());
 
+        else if (text == "Change your account picture")
+            m_actionLinks.insert(l, [this]() { UserAccountsPage::promptChangePicture(this); });
+        else if (text == "Change your Linux Password")
+            m_actionLinks.insert(l, [this]() { UserAccountsPage::promptChangePassword(this); });
+        else if (text == "Add or remove user accounts")
+            m_actionLinks.insert(l, [this]() { UserAccountsPage::promptManageAccounts(this); });
+
         // Remaining task links: deep-links into the new detail pages, and
         // launchers that open the matching KDE settings module. Consulted only
         // when the explicit cases above didn't already claim this label.
@@ -1420,9 +1432,6 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Add a printer",                               kDevicesPrintersPath },
             { "Change the theme",                            kPersonalizationPath },
             { "Preview, delete, or show and hide fonts",     kFontsPath },
-            { "Change your account picture",                 kUserAccountsPath },
-            { "Add or remove user accounts",                 kUserAccountsPath },
-            { "Change your Linux Password",                  kUserAccountsPath },
             { "Let Linux suggest settings",                  kEaseOfAccessPath },
             { "Optimize visual display",                     kEaseOfAccessPath },
         };
