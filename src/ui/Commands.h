@@ -78,6 +78,10 @@ inline QStringList networkSettings()
     return { "nm-connection-editor" };
 }
 
+inline const QStringList selectdefaultapplicationCmd = {
+    QStringLiteral("selectdefaultapplication")
+};
+
 // Firewall - use system firewall settings
 inline QStringList firewallSettings()
 {

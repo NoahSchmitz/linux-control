@@ -59,7 +59,6 @@
 #include "pages/HomeGroupPage.h"
 #include "pages/InternetOptionsPage.h"
 #include "pages/AutoPlayPage.h"
-#include "pages/DefaultProgramsPage.h"
 #include "pages/FolderOptionsPage.h"
 #include "pages/TaskbarAndStartMenuPage.h"
 #include "pages/NetworkConnectionsPage.h"
@@ -510,7 +509,6 @@ static const QString kBitLockerPath        = PageRegistry::pathFor(PageId::BitLo
 static const QString kHomeGroupPath        = PageRegistry::pathFor(PageId::HomeGroup);
 static const QString kInternetOptionsPath  = PageRegistry::pathFor(PageId::InternetOptions);
 static const QString kAutoPlayPath         = PageRegistry::pathFor(PageId::AutoPlay);
-static const QString kDefaultProgramsPath  = PageRegistry::pathFor(PageId::DefaultPrograms);
 static const QString kFolderOptionsPath    = PageRegistry::pathFor(PageId::FolderOptions);
 static const QString kTaskbarAndStartMenuPath = PageRegistry::pathFor(PageId::TaskbarAndStartMenu);
 static const QString kNetworkConnectionsPath = PageRegistry::pathFor(PageId::NetworkConnections);
@@ -538,7 +536,6 @@ static bool isRoutableSubPath(const QString &path)
         || path == kHomeGroupPath
         || path == kInternetOptionsPath
         || path == kAutoPlayPath
-        || path == kDefaultProgramsPath
         || path == kFolderOptionsPath
         || path == kTaskbarAndStartMenuPath
         || path == kNetworkConnectionsPath
@@ -765,11 +762,6 @@ void MainWindow::showEntry(const QString &entry)
                 AutoPlayPage::sidebarLinks(),
                 AutoPlayPage::sidebarSeeAlso());
             m_scroll->setWidget(new AutoPlayPage(sidebar));
-        } else if (entry == kDefaultProgramsPath) {
-            auto *sidebar = buildSubpageSidebar(
-                DefaultProgramsPage::sidebarLinks(),
-                DefaultProgramsPage::sidebarSeeAlso());
-            m_scroll->setWidget(new DefaultProgramsPage(sidebar));
         } else if (entry == kFolderOptionsPath) {
             auto *sidebar = buildSubpageSidebar(
                 FolderOptionsPage::sidebarLinks(),
@@ -936,7 +928,10 @@ QWidget *MainWindow::buildHomePage()
                     // Intercept Credential Manager tasks
                     static const QHash<QString, QStringList> knownTaskCommands = {
                         { "Credential Manager",         credentialManager() },
-                        { "Manage Windows Credentials", credentialManager() }
+                        { "Manage Windows Credentials", credentialManager() },
+                        { "Default Programs",           selectdefaultapplicationCmd },
+                        { "Set your default programs",  selectdefaultapplicationCmd },
+                        { "Choose a default program",   selectdefaultapplicationCmd }
                     };
                     
                     if (knownTaskCommands.contains(task)) {
@@ -969,9 +964,6 @@ QWidget *MainWindow::buildHomePage()
                         { "Choose homegroup and sharing options", kHomeGroupPath },
                         { "Set up your connection",        kInternetOptionsPath },
                         { "AutoPlay",                      kAutoPlayPath },
-                        { "Default Programs",              kDefaultProgramsPath },
-                        { "Set your default programs",     kDefaultProgramsPath },
-                        { "Choose a default program",      kDefaultProgramsPath },
                         { "Folder Options",                kFolderOptionsPath },
                         { "Change folder and search options", kFolderOptionsPath },
                         { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
@@ -1014,7 +1006,7 @@ QWidget *MainWindow::buildHomePage()
             { "BitLocker Drive Encryption", "drive-encrypted", kBitLockerPath },
             { "Credential Manager", "dialog-password", "", false, credentialManager() },
             { "Date and Time", "x-office-calendar", "datetime", true },
-            { "Default Programs", "system-run", kDefaultProgramsPath },
+            { "Default Programs", "system-run", "", false, selectdefaultapplicationCmd },
             { "Devices and Printers", "printer", kDevicesPrintersPath },
             { "Ease of Access Center", "preferences-desktop-accessibility", kEaseOfAccessPath },
             { "Folder Options", "folder", kFolderOptionsPath },
@@ -1445,9 +1437,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Connect to an external display",              displaySettings() },
             { "Change Font Settings",                        fontSettings() },
             { "Adjust ClearType text",                       fontSettings() },
-            { "Set your default programs",                   networkSettings() },
-            { "Make a file type always open in a specific program",
-              networkSettings() },
+            { "Set your default programs",                   selectdefaultapplicationCmd },
+            { "Make a file type always open in a specific program", selectdefaultapplicationCmd },
             { "Change keyboards or other input methods",     keyboardSettings() },
             { "Change display language",                     regionAndLanguage() },
             { "Install or uninstall display languages",      regionAndLanguage() },
@@ -1512,8 +1503,7 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "System",                    "System and Security/System" },
             { "Programs and Features",     "Programs/Programs and Features" },
             { "Power Options",             "System and Security/Power Options" },
-            { "Network and Sharing Center",
-              "Network and Internet/Network and Sharing Center" },
+            { "Network and Sharing Center","Network and Internet/Network and Sharing Center" },
             { "Personalization",           kPersonalizationPath },
             { "Fonts",                     kFontsPath },
             { "User Accounts",             kUserAccountsPath },
@@ -1524,7 +1514,6 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "HomeGroup",                 kHomeGroupPath },
             { "Internet Options",          kInternetOptionsPath },
             { "AutoPlay",                  kAutoPlayPath },
-            { "Default Programs",          kDefaultProgramsPath },
             { "Folder Options",            kFolderOptionsPath },
             { "Taskbar and Start Menu",    kTaskbarAndStartMenuPath },
         };
@@ -1538,6 +1527,10 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             m_appletLinks.insert(title, QStringLiteral("sound"));
         else if (group.title == "Credential Manager")
             m_commandLinks.insert(title, credentialManager());
+        else if (group.title == "Default Programs")
+            m_commandLinks.insert(title, selectdefaultapplicationCmd);
+
+
         textBlock->addWidget(title);
 
         for (const QStringList &line : group.lines) {

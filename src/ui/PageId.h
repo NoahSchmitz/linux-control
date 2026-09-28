@@ -42,7 +42,6 @@ enum class PageId {
     HomeGroup,
     InternetOptions,
     AutoPlay,
-    DefaultPrograms,
     FolderOptions,
     TaskbarAndStartMenu,
     NetworkConnections,
