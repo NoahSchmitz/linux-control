@@ -40,7 +40,6 @@ add_executable(controlpanel
     src/ui/pages/HomeGroupPage.cpp
     src/ui/pages/InternetOptionsPage.cpp
     src/ui/pages/AutoPlayPage.cpp
-    src/ui/pages/FolderOptionsPage.cpp
     src/ui/pages/TaskbarAndStartMenuPage.cpp
     src/ui/dialogs/DateTimeDialog.cpp
     src/ui/dialogs/SoundDialog.cpp

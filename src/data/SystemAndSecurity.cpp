@@ -60,7 +60,7 @@ const QList<DetailGroup> &systemAndSecurityGroups()
             }
         },
         {
-            "preferences-desktop-activities", "Administrative Tools",
+            "administration", "Administrative Tools",
             {
                 { "Free up disk space",
                   "Defragment your hard drive" },

@@ -59,7 +59,7 @@
 #include "pages/HomeGroupPage.h"
 #include "pages/InternetOptionsPage.h"
 #include "pages/AutoPlayPage.h"
-#include "pages/FolderOptionsPage.h"
+// #include "pages/FolderOptionsPage.h"
 #include "pages/TaskbarAndStartMenuPage.h"
 #include "pages/NetworkConnectionsPage.h"
 #include "dialogs/DateTimeDialog.h"
@@ -762,11 +762,6 @@ void MainWindow::showEntry(const QString &entry)
                 AutoPlayPage::sidebarLinks(),
                 AutoPlayPage::sidebarSeeAlso());
             m_scroll->setWidget(new AutoPlayPage(sidebar));
-        } else if (entry == kFolderOptionsPath) {
-            auto *sidebar = buildSubpageSidebar(
-                FolderOptionsPage::sidebarLinks(),
-                FolderOptionsPage::sidebarSeeAlso());
-            m_scroll->setWidget(new FolderOptionsPage(sidebar));
         } else if (entry == kTaskbarAndStartMenuPath) {
             auto *sidebar = buildSubpageSidebar(
                 TaskbarAndStartMenuPage::sidebarLinks(),
@@ -931,7 +926,8 @@ QWidget *MainWindow::buildHomePage()
                         { "Manage Windows Credentials", credentialManager() },
                         { "Default Programs",           selectdefaultapplicationCmd },
                         { "Set your default programs",  selectdefaultapplicationCmd },
-                        { "Choose a default program",   selectdefaultapplicationCmd }
+                        { "Choose a default program",   selectdefaultapplicationCmd },
+                        { "Folder Options",              thunarPreferences()},
                     };
                     
                     if (knownTaskCommands.contains(task)) {
@@ -964,7 +960,6 @@ QWidget *MainWindow::buildHomePage()
                         { "Choose homegroup and sharing options", kHomeGroupPath },
                         { "Set up your connection",        kInternetOptionsPath },
                         { "AutoPlay",                      kAutoPlayPath },
-                        { "Folder Options",                kFolderOptionsPath },
                         { "Change folder and search options", kFolderOptionsPath },
                         { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
                         { "Change the taskbar and Start menu", kTaskbarAndStartMenuPath },
@@ -1009,7 +1004,7 @@ QWidget *MainWindow::buildHomePage()
             { "Default Programs", "system-run", "", false, selectdefaultapplicationCmd },
             { "Devices and Printers", "printer", kDevicesPrintersPath },
             { "Ease of Access Center", "preferences-desktop-accessibility", kEaseOfAccessPath },
-            { "Folder Options", "folder", kFolderOptionsPath },
+            { "Folder Options", "folder", "", false, thunarPreferences() },
             { "Fonts", "font-x-generic", kFontsPath },
             { "HomeGroup", "network-workgroup", kHomeGroupPath },
             { "Internet Options", "internet-web-browser", kInternetOptionsPath },
@@ -1022,7 +1017,7 @@ QWidget *MainWindow::buildHomePage()
             { "Programs and Features", "system-software-install", kProgramsFeaturesPath },
             { "Sound", "audio-card", "sound", true },
             { "System", "computer", "System and Security/System" },
-            { "Taskbar and Start Menu", "preferences-desktop-panel", kTaskbarAndStartMenuPath },
+            { "Taskbar and Start Menu", "menu-editor", kTaskbarAndStartMenuPath },
             { "User Accounts", "system-users", kUserAccountsPath }
         };
 
@@ -1451,6 +1446,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Change how your keyboard works",              accessibility() },
             { "Start speech recognition",                    accessibility() },
             { "Set up a microphone",                         sounds() },
+            { "Specify single- or double-click to open",     thunarPreferences() },
+            { "Show hidden files and folders",               fileManager() },
         };
         if (!m_subpageLinks.contains(l) && !m_commandLinks.contains(l)) {
             const auto appIt = taskApplet.constFind(text);
@@ -1514,7 +1511,6 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "HomeGroup",                 kHomeGroupPath },
             { "Internet Options",          kInternetOptionsPath },
             { "AutoPlay",                  kAutoPlayPath },
-            { "Folder Options",            kFolderOptionsPath },
             { "Taskbar and Start Menu",    kTaskbarAndStartMenuPath },
         };
         if (knownSubpages.contains(group.title))
@@ -1529,6 +1525,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             m_commandLinks.insert(title, credentialManager());
         else if (group.title == "Default Programs")
             m_commandLinks.insert(title, selectdefaultapplicationCmd);
+        else if (group.title == "Folder Options")
+            m_commandLinks.insert(title, thunarPreferences());
 
 
         textBlock->addWidget(title);

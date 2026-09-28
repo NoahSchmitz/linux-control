@@ -41,7 +41,7 @@ const QList<Entry> &table()
         { PageId::HomeGroup,        QStringLiteral("Network and Internet/HomeGroup") },
         { PageId::InternetOptions,  QStringLiteral("Network and Internet/Internet Options") },
         { PageId::AutoPlay,         QStringLiteral("Hardware and Sound/AutoPlay") },
-        { PageId::FolderOptions,    QStringLiteral("Appearance and Personalization/Folder Options") },
+        // { PageId::FolderOptions,    QStringLiteral("Appearance and Personalization/Folder Options") },
         { PageId::TaskbarAndStartMenu, QStringLiteral("Appearance and Personalization/Taskbar and Start Menu") },
         { PageId::NetworkConnections, "Network and Internet/Network Connections" },
         { PageId::NetworkMap,       QStringLiteral("Network and Internet/Network Map") },

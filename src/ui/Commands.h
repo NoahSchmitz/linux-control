@@ -148,3 +148,14 @@ inline QStringList deviceManager()
 {
     return { "devmgmt" };
 }
+
+// File Manager / Folder Options
+inline QStringList fileManager()
+{
+    return { "thunar" };
+}
+
+inline QStringList thunarPreferences()
+{
+    return { "thunar-settings" };
+}

@@ -31,7 +31,7 @@ const QList<DetailGroup> &appearanceAndPersonalizationGroups()
             }
         },
         {
-            "preferences-desktop-plasma-theme", "Taskbar and Start Menu",
+            "menu-editor", "Taskbar and Start Menu",
             {
                 { "Customize the Start menu",
                   "Customize icons on the taskbar" },
@@ -48,7 +48,7 @@ const QList<DetailGroup> &appearanceAndPersonalizationGroups()
             }
         },
         {
-            "folder-templates", "Folder Options",
+            "folder", "Folder Options",
             {
                 { "Specify single- or double-click to open",
                   "Show hidden files and folders" },
