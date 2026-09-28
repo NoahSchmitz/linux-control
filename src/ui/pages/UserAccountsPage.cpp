@@ -195,8 +195,9 @@ public:
         m_fullNameEdit = new QLineEdit(fullname);
         generalLayout->addWidget(m_fullNameEdit, 1, 1);
 
-        generalLayout->addWidget(new QLabel("Description:"), 2, 0);
-        generalLayout->addWidget(new QLineEdit(), 2, 1); // Left inert as Linux doesn't natively use this
+        // generalLayout->addWidget(new QLabel("Description:"), 2, 0);
+        // generalLayout->addWidget(new QLineEdit(), 2, 1); // Left inert as Linux doesn't natively use this
+
         generalLayout->setRowStretch(3, 1);
         m_tabs->addTab(generalTab, "General");
 
@@ -217,13 +218,13 @@ public:
         stdDesc->setContentsMargins(20, 0, 0, 10);
         groupLayout->addWidget(stdDesc);
 
-        auto *restrictedRadio = new QRadioButton("Restricted user");
-        groupLayout->addWidget(restrictedRadio);
+        // auto *restrictedRadio = new QRadioButton("Restricted user");
+        // groupLayout->addWidget(restrictedRadio);
         
-        auto *restrictedDesc = new QLabel("(Users Group)\nUsers can operate the computer and save documents, but cannot install programs or make potentially damaging changes to the system files and settings.");
-        restrictedDesc->setWordWrap(true);
-        restrictedDesc->setContentsMargins(20, 0, 0, 10);
-        groupLayout->addWidget(restrictedDesc);
+        // auto *restrictedDesc = new QLabel("(Users Group)\nUsers can operate the computer and save documents, but cannot install programs or make potentially damaging changes to the system files and settings.");
+        // restrictedDesc->setWordWrap(true);
+        // restrictedDesc->setContentsMargins(20, 0, 0, 10);
+        // groupLayout->addWidget(restrictedDesc);
 
         m_adminRadio = new QRadioButton("Other:");
         auto *otherH = new QHBoxLayout;
@@ -335,10 +336,10 @@ public:
         m_fullEdit = new QLineEdit;
         formLayout->addWidget(m_fullEdit, 1, 1);
 
-        formLayout->addWidget(new QLabel("Description:"), 2, 0);
-        m_descEdit = new QLineEdit;
-        formLayout->addWidget(m_descEdit, 2, 1);
-        rightLayout->addLayout(formLayout);
+        // formLayout->addWidget(new QLabel("Description:"), 2, 0);
+        // m_descEdit = new QLineEdit;
+        // formLayout->addWidget(m_descEdit, 2, 1);
+        // rightLayout->addLayout(formLayout);
 
         rightLayout->addSpacing(20);
         rightLayout->addWidget(new QLabel("To continue, click Next."));
@@ -419,10 +420,10 @@ public:
         tabLayout->addLayout(headerLayout);
         tabLayout->addSpacing(10);
 
-        auto *reqCheck = new QCheckBox("Users must enter a user name and password to use this computer.");
-        reqCheck->setChecked(true); // Visual stub matching classic UI
-        tabLayout->addWidget(reqCheck);
-        tabLayout->addSpacing(10);
+        // auto *reqCheck = new QCheckBox("Users must enter a user name and password to use this computer.");
+        // reqCheck->setChecked(true); // Visual stub matching classic UI
+        // tabLayout->addWidget(reqCheck);
+        // tabLayout->addSpacing(10);
 
         tabLayout->addWidget(new QLabel("Users for this computer:"));
 
@@ -473,7 +474,7 @@ public:
         tabLayout->addWidget(m_pwGroup);
 
         tabs->addTab(usersTab, "Users");
-        tabs->addTab(new QWidget(), "Advanced"); // Stub tab
+        // tabs->addTab(new QWidget(), "Advanced"); // Stub tab
         layout->addWidget(tabs);
 
         auto *bottomBtns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply);
