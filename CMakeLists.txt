@@ -41,7 +41,6 @@ add_executable(controlpanel
     src/ui/pages/InternetOptionsPage.cpp
     src/ui/pages/AutoPlayPage.cpp
     src/ui/pages/DefaultProgramsPage.cpp
-    src/ui/pages/CredentialManagerPage.cpp
     src/ui/pages/FolderOptionsPage.cpp
     src/ui/pages/TaskbarAndStartMenuPage.cpp
     src/ui/dialogs/DateTimeDialog.cpp

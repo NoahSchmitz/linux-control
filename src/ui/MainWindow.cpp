@@ -60,7 +60,6 @@
 #include "pages/InternetOptionsPage.h"
 #include "pages/AutoPlayPage.h"
 #include "pages/DefaultProgramsPage.h"
-#include "pages/CredentialManagerPage.h"
 #include "pages/FolderOptionsPage.h"
 #include "pages/TaskbarAndStartMenuPage.h"
 #include "pages/NetworkConnectionsPage.h"
@@ -512,7 +511,6 @@ static const QString kHomeGroupPath        = PageRegistry::pathFor(PageId::HomeG
 static const QString kInternetOptionsPath  = PageRegistry::pathFor(PageId::InternetOptions);
 static const QString kAutoPlayPath         = PageRegistry::pathFor(PageId::AutoPlay);
 static const QString kDefaultProgramsPath  = PageRegistry::pathFor(PageId::DefaultPrograms);
-static const QString kCredentialManagerPath= PageRegistry::pathFor(PageId::CredentialManager);
 static const QString kFolderOptionsPath    = PageRegistry::pathFor(PageId::FolderOptions);
 static const QString kTaskbarAndStartMenuPath = PageRegistry::pathFor(PageId::TaskbarAndStartMenu);
 static const QString kNetworkConnectionsPath = PageRegistry::pathFor(PageId::NetworkConnections);
@@ -541,7 +539,6 @@ static bool isRoutableSubPath(const QString &path)
         || path == kInternetOptionsPath
         || path == kAutoPlayPath
         || path == kDefaultProgramsPath
-        || path == kCredentialManagerPath
         || path == kFolderOptionsPath
         || path == kTaskbarAndStartMenuPath
         || path == kNetworkConnectionsPath
@@ -773,11 +770,6 @@ void MainWindow::showEntry(const QString &entry)
                 DefaultProgramsPage::sidebarLinks(),
                 DefaultProgramsPage::sidebarSeeAlso());
             m_scroll->setWidget(new DefaultProgramsPage(sidebar));
-        } else if (entry == kCredentialManagerPath) {
-            auto *sidebar = buildSubpageSidebar(
-                CredentialManagerPage::sidebarLinks(),
-                CredentialManagerPage::sidebarSeeAlso());
-            m_scroll->setWidget(new CredentialManagerPage(sidebar));
         } else if (entry == kFolderOptionsPath) {
             auto *sidebar = buildSubpageSidebar(
                 FolderOptionsPage::sidebarLinks(),
@@ -941,6 +933,22 @@ QWidget *MainWindow::buildHomePage()
                              this, &MainWindow::navigateTo, Qt::QueuedConnection);
             QObject::connect(w, &CategoryWidget::taskActivated, this,
                 [this](const QString &category, const QString &task) {
+                    // Intercept Credential Manager tasks
+                    static const QHash<QString, QStringList> knownTaskCommands = {
+                        { "Credential Manager",         credentialManager() },
+                        { "Manage Windows Credentials", credentialManager() }
+                    };
+                    
+                    if (knownTaskCommands.contains(task)) {
+                        QStringList cmd = knownTaskCommands.value(task);
+                        const QString program = cmd.takeFirst();
+                        if (QStandardPaths::findExecutable(program).isEmpty()) {
+                            QMessageBox::warning(this, tr("Control Panel"), tr("\"%1\" is not installed.").arg(program));
+                        } else {
+                            QProcess::startDetached(program, cmd);
+                        }
+                        return;
+                    }
                     static const QHash<QString, QString> knownTaskPaths = {
                         { "Uninstall a program",           kProgramsFeaturesPath },
                         { "View network status and tasks", kNetworkSharingPath },
@@ -959,8 +967,6 @@ QWidget *MainWindow::buildHomePage()
                         { "Default Programs",              kDefaultProgramsPath },
                         { "Set your default programs",     kDefaultProgramsPath },
                         { "Choose a default program",      kDefaultProgramsPath },
-                        { "Credential Manager",            kCredentialManagerPath },
-                        { "Manage Windows Credentials",    kCredentialManagerPath },
                         { "Folder Options",                kFolderOptionsPath },
                         { "Change folder and search options", kFolderOptionsPath },
                         { "Taskbar and Start Menu",        kTaskbarAndStartMenuPath },
@@ -993,6 +999,7 @@ QWidget *MainWindow::buildHomePage()
             QString iconName;
             QString pathOrApplet;
             bool isApplet = false;
+            StringList command = {};
         };
 
         QList<ControlPanelAppletEntry> allApplets = {
@@ -1000,7 +1007,7 @@ QWidget *MainWindow::buildHomePage()
             { "AutoPlay", "media-optical", kAutoPlayPath },
             { "Backup and Restore", "document-save", kBackupAndRestorePath },
             { "BitLocker Drive Encryption", "drive-encrypted", kBitLockerPath },
-            { "Credential Manager", "dialog-password", kCredentialManagerPath },
+            { "Credential Manager", "dialog-password", "", false, credentialManager() },
             { "Date and Time", "x-office-calendar", "datetime", true },
             { "Default Programs", "system-run", kDefaultProgramsPath },
             { "Devices and Printers", "printer", kDevicesPrintersPath },
@@ -1034,7 +1041,12 @@ QWidget *MainWindow::buildHomePage()
             itemWidget->setObjectName("iconGridItem");
             itemWidget->installEventFilter(this);
 
-            m_iconGridLinks.insert(itemWidget, {entry.pathOrApplet, entry.isApplet});
+            // Register standard flow based on what the applet requires
+            if (!entry.command.isEmpty()) {
+                m_commandLinks.insert(itemWidget, entry.command);
+            } else {
+                m_iconGridLinks.insert(itemWidget, {entry.pathOrApplet, entry.isApplet});
+            }
 
             if (isLarge) {
                 itemWidget->setFixedSize(180, 85);
@@ -1433,6 +1445,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Change the date, time, or number format",     regionAndLanguage() },
             { "Change location",                             regionAndLanguage() },
             { "Manage Linux Credentials",                    credentialManager() },
+            { "Credential Manager",                          credentialManager() },
+            { "Manage Windows Credentials",                  credentialManager() },
             { "Change how your mouse works",                 mouseSettings() },
             { "Change how your keyboard works",              accessibility() },
             { "Start speech recognition",                    accessibility() },
@@ -1502,7 +1516,6 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             { "Internet Options",          kInternetOptionsPath },
             { "AutoPlay",                  kAutoPlayPath },
             { "Default Programs",          kDefaultProgramsPath },
-            { "Credential Manager",        kCredentialManagerPath },
             { "Folder Options",            kFolderOptionsPath },
             { "Taskbar and Start Menu",    kTaskbarAndStartMenuPath },
         };
@@ -1514,7 +1527,8 @@ QWidget *MainWindow::buildCategoryPage(const QString &currentCategory)
             m_appletLinks.insert(title, QStringLiteral("datetime"));
         else if (group.title == "Sound")
             m_appletLinks.insert(title, QStringLiteral("sound"));
-
+        else if (group.title == "Credential Manager")
+            m_commandLinks.insert(title, credentialManager());
         textBlock->addWidget(title);
 
         for (const QStringList &line : group.lines) {

@@ -43,7 +43,6 @@ enum class PageId {
     InternetOptions,
     AutoPlay,
     DefaultPrograms,
-    CredentialManager,
     FolderOptions,
     TaskbarAndStartMenu,
     NetworkConnections,

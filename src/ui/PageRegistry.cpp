@@ -42,7 +42,6 @@ const QList<Entry> &table()
         { PageId::InternetOptions,  QStringLiteral("Network and Internet/Internet Options") },
         { PageId::AutoPlay,         QStringLiteral("Hardware and Sound/AutoPlay") },
         { PageId::DefaultPrograms,  QStringLiteral("Programs/Default Programs") },
-        { PageId::CredentialManager, QStringLiteral("User Accounts and Family Safety/Credential Manager") },
         { PageId::FolderOptions,    QStringLiteral("Appearance and Personalization/Folder Options") },
         { PageId::TaskbarAndStartMenu, QStringLiteral("Appearance and Personalization/Taskbar and Start Menu") },
         { PageId::NetworkConnections, "Network and Internet/Network Connections" },

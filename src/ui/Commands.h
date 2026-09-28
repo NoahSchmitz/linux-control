@@ -118,7 +118,7 @@ inline QStringList regionAndLanguage()
 // Credential Manager - use system credential manager
 inline QStringList credentialManager()
 {
-    return { "gnome-keyring-manager" };
+    return { "seahorse" };
 }
 
 // Color Themes - use system theme settings
