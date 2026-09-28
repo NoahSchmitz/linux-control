@@ -14,26 +14,14 @@
 > **Very much a work in progress.** Several features are placeholders or don't do anything yet, the code is janky and buggy in places, and it needs a lot more work before it's daily-driveable. Expect rough edges until about August.
 
 > [!NOTE]
-> **Built for CachyOS / Arch Linux.** Some features (package updates, AUR reinstall, driver-adjacent firewall config) depend on `pacman`, `yay`, and `ufw`. Other distros may need minor adjustments.
+> **Built for Arch Linux.** Some features (package updates, AUR reinstall, driver-adjacent firewall config) depend on `pacman`, `yay`, and `ufw`. Other distros may need minor adjustments.
 
 ## Installation
 
-### Arch / CachyOS (AUR)
-
-```bash
-yay -S linux-control
-```
 
 ### Pre-built binaries
 
-Download the latest archive for your architecture from the [Releases](https://github.com/actuallyaridan/linux-control/releases/latest) page and extract it somewhere in your `$PATH`:
-
-```bash
-tar -xf linux-control-x86_64.tar.gz
-sudo mv control libAeroQt.so* /usr/local/bin/
-```
-
-`libAeroQt.so` is a separate runtime dependency (not statically linked), so it needs to ship alongside `control`.
+<!-- Download the latest archive for your architecture from the [Releases](https://github.com/actuallyaridan/linux-control/releases/latest) page and extract it somewhere in your `$PATH`: -->
 
 ## Building
 
@@ -46,7 +34,6 @@ cmake --build build -j
 ./build/control
 ```
 
-You'll also need `libAeroQt.so` on your system, built from [libaero-qt](https://gitgud.io/atmk/libaero-qt). Place the resulting `libAeroQt.so*` next to `build/control` (or install it to your library path).
 
 ## Runtime dependencies
 

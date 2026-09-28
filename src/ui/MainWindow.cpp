@@ -999,7 +999,7 @@ QWidget *MainWindow::buildHomePage()
             QString iconName;
             QString pathOrApplet;
             bool isApplet = false;
-            StringList command = {};
+            QStringList command = {};
         };
 
         QList<ControlPanelAppletEntry> allApplets = {
