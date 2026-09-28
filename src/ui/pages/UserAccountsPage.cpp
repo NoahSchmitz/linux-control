@@ -24,11 +24,61 @@
 #include <QProcess>
 #include <QFileDialog>
 #include <QDir>
+#include <QTableWidget>
+#include <QHeaderView>
+#include <QGroupBox>
+#include <QCheckBox>
+#include <QPushButton>
 
 #include <pwd.h>
 #include <grp.h>
 #include <unistd.h>
 #include <vector>
+
+// ----------------------------------------------------------------------------
+// Shared Helper: Get all valid system users
+// ----------------------------------------------------------------------------
+struct UserInfo {
+    QString username;
+    QString fullname;
+    bool isAdmin;
+    QString groupString;
+};
+
+static QList<UserInfo> getAllUsers() {
+    QList<UserInfo> users;
+    setpwent();
+    while (passwd *pw = getpwent()) {
+        // Filter for standard users (UID >= 1000) and root (UID == 0)
+        if ((pw->pw_uid >= 1000 && pw->pw_uid < 65534) || pw->pw_uid == 0) {
+            UserInfo u;
+            u.username = QString::fromLocal8Bit(pw->pw_name);
+            u.fullname = QString::fromLocal8Bit(pw->pw_gecos).section(QLatin1Char(','), 0, 0);
+            u.isAdmin = (pw->pw_uid == 0);
+
+            int ngroups = 0;
+            getgrouplist(pw->pw_name, pw->pw_gid, nullptr, &ngroups);
+            if (ngroups > 0) {
+                std::vector<gid_t> gids(ngroups);
+                if (getgrouplist(pw->pw_name, pw->pw_gid, gids.data(), &ngroups) != -1) {
+                    for (gid_t g : gids) {
+                        if (const group *gr = getgrgid(g)) {
+                            QString gname = QString::fromLocal8Bit(gr->gr_name);
+                            if (gname == "wheel" || gname == "sudo") {
+                                u.isAdmin = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            u.groupString = u.isAdmin ? "Administrators" : "Users";
+            users.append(u);
+        }
+    }
+    endpwent();
+    return users;
+}
 
 // ----------------------------------------------------------------------------
 // Custom Dialog mimicking the classic Windows User Properties
@@ -156,6 +206,305 @@ private:
                 QProcess::execute("pkexec", {"gpasswd", "-d", m_username, "wheel"});
             }
             m_initialIsAdmin = wantAdmin;
+        }
+    }
+};
+
+// ----------------------------------------------------------------------------
+// Custom Dialog mimicking the "Add New User" Wizard
+// ----------------------------------------------------------------------------
+class AddNewUserDialog : public QDialog {
+public:
+    AddNewUserDialog(QWidget* parent = nullptr) : QDialog(parent) {
+        setWindowTitle("Add New User");
+        // setFixedSize(480, 320);
+        
+
+        auto *mainLayout = new QHBoxLayout(this);
+        mainLayout->setContentsMargins(0, 0, 0, 0);
+        mainLayout->setSpacing(0);
+
+        mainLayout->setSizeConstraint(QLayout::SetFixedSize);
+
+        // Left Wizard Banner
+        auto *leftBanner = new QFrame(this);
+        leftBanner->setFixedWidth(150);
+        leftBanner->setStyleSheet("background-color: #000080;"); // Classic dark blue
+        
+        auto *bannerLayout = new QVBoxLayout(leftBanner);
+        auto *iconLabel = new QLabel;
+        // Using an asterisk or keys as a stand-in for the classic win2k box icon
+        iconLabel->setPixmap(themeIcon({"preferences-desktop-user-password", "dialog-password"}).pixmap(64, 64));
+        iconLabel->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+        bannerLayout->addWidget(iconLabel);
+        bannerLayout->addStretch();
+        mainLayout->addWidget(leftBanner);
+
+        // Right Content Area
+        auto *rightPanel = new QWidget(this);
+        // rightPanel->setStyleSheet("background-color: #ECE9D8;"); // Classic WinXP dialog color
+        auto *rightLayout = new QVBoxLayout(rightPanel);
+        rightLayout->setContentsMargins(20, 20, 20, 15);
+
+        auto *instruction = new QLabel("Enter the basic information for the new user.");
+        rightLayout->addWidget(instruction);
+        rightLayout->addSpacing(15);
+
+        auto *formLayout = new QGridLayout;
+        formLayout->addWidget(new QLabel("User name:"), 0, 0);
+        m_userEdit = new QLineEdit;
+        formLayout->addWidget(m_userEdit, 0, 1);
+
+        formLayout->addWidget(new QLabel("Full name:"), 1, 0);
+        m_fullEdit = new QLineEdit;
+        formLayout->addWidget(m_fullEdit, 1, 1);
+
+        formLayout->addWidget(new QLabel("Description:"), 2, 0);
+        m_descEdit = new QLineEdit;
+        formLayout->addWidget(m_descEdit, 2, 1);
+        rightLayout->addLayout(formLayout);
+
+        rightLayout->addSpacing(20);
+        rightLayout->addWidget(new QLabel("To continue, click Next."));
+        rightLayout->addStretch();
+
+        // Standard bottom buttons mimicking Back/Next/Cancel
+        auto *btnLayout = new QHBoxLayout;
+        btnLayout->addStretch();
+        
+        auto *backBtn = new QPushButton("< Back");
+        backBtn->setEnabled(false);
+        btnLayout->addWidget(backBtn);
+        
+        auto *nextBtn = new QPushButton("Next >");
+        connect(nextBtn, &QPushButton::clicked, this, &AddNewUserDialog::createUser);
+        btnLayout->addWidget(nextBtn);
+        
+        auto *cancelBtn = new QPushButton("Cancel");
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+        btnLayout->addWidget(cancelBtn);
+        
+        rightLayout->addLayout(btnLayout);
+        mainLayout->addWidget(rightPanel);
+    }
+
+private:
+    QLineEdit *m_userEdit;
+    QLineEdit *m_fullEdit;
+    QLineEdit *m_descEdit;
+
+    void createUser() {
+        QString user = m_userEdit->text();
+        QString full = m_fullEdit->text();
+        if (user.isEmpty()) return;
+
+        // Create the user
+        QProcess::execute("pkexec", {"useradd", "-m", "-c", full, user});
+        
+        // Spawn a terminal for the user to set the new account's password securely
+        QProcess::startDetached("foot", {"-e", "sudo", "passwd", user});
+        accept();
+    }
+};
+
+// ----------------------------------------------------------------------------
+// Custom Dialog mimicking the "Users and Passwords" Control Applet
+// ----------------------------------------------------------------------------
+class UsersAndPasswordsDialog : public QDialog {
+public:
+    UsersAndPasswordsDialog(QWidget* parent = nullptr) : QDialog(parent) {
+        setWindowTitle("Users and Passwords");
+        setMinimumSize(420, 450);
+
+        auto *layout = new QVBoxLayout(this);
+        
+        auto *tabs = new QTabWidget(this);
+        auto *usersTab = new QWidget;
+        auto *tabLayout = new QVBoxLayout(usersTab);
+        tabLayout->setContentsMargins(15, 15, 15, 15);
+
+        // Header instruction
+        auto *headerLayout = new QHBoxLayout;
+        auto *headerIcon = new QLabel;
+        headerIcon->setPixmap(themeIcon({"system-users"}).pixmap(32, 32));
+        headerLayout->addWidget(headerIcon, 0, Qt::AlignTop);
+        
+        auto *headerText = new QLabel("Use the list below to grant or deny users access to your computer, and to change passwords and other settings.");
+        headerText->setWordWrap(true);
+        headerLayout->addWidget(headerText, 1);
+        tabLayout->addLayout(headerLayout);
+        tabLayout->addSpacing(10);
+
+        auto *reqCheck = new QCheckBox("Users must enter a user name and password to use this computer.");
+        reqCheck->setChecked(true); // Visual stub matching classic UI
+        tabLayout->addWidget(reqCheck);
+        tabLayout->addSpacing(10);
+
+        tabLayout->addWidget(new QLabel("Users for this computer:"));
+
+        // Table
+        m_table = new QTableWidget(0, 2);
+        m_table->setHorizontalHeaderLabels({"User Name", "Group"});
+        m_table->horizontalHeader()->setStretchLastSection(true);
+        m_table->horizontalHeader()->setDefaultAlignment(Qt::AlignLeft);
+        m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
+        m_table->setSelectionMode(QAbstractItemView::SingleSelection);
+        m_table->setShowGrid(false);
+        m_table->verticalHeader()->setVisible(false);
+        m_table->setStyleSheet("QTableWidget { background-color: #FFFFFF; border: 1px solid #808080; }");
+        tabLayout->addWidget(m_table);
+
+        // Buttons
+        auto *btnRow = new QHBoxLayout;
+        btnRow->addStretch();
+        auto *addBtn = new QPushButton("Add...");
+        m_removeBtn = new QPushButton("Remove");
+        m_propBtn = new QPushButton("Properties");
+        btnRow->addWidget(addBtn);
+        btnRow->addWidget(m_removeBtn);
+        btnRow->addWidget(m_propBtn);
+        tabLayout->addLayout(btnRow);
+        tabLayout->addSpacing(10);
+
+        // Password Group Box
+        m_pwGroup = new QGroupBox("Password for [User]");
+        auto *pwLayout = new QHBoxLayout(m_pwGroup);
+        pwLayout->setContentsMargins(10, 15, 10, 10);
+        
+        auto *pwIcon = new QLabel;
+        pwIcon->setPixmap(themeIcon({"preferences-desktop-user-password"}).pixmap(32, 32));
+        pwLayout->addWidget(pwIcon, 0, Qt::AlignTop);
+
+        auto *pwRight = new QVBoxLayout;
+        m_pwLabel = new QLabel("To change the password for [User], click Set Password.");
+        m_pwLabel->setWordWrap(true);
+        pwRight->addWidget(m_pwLabel);
+        
+        auto *setPwBtnRow = new QHBoxLayout;
+        setPwBtnRow->addStretch();
+        m_setPwBtn = new QPushButton("Set Password...");
+        setPwBtnRow->addWidget(m_setPwBtn);
+        pwRight->addLayout(setPwBtnRow);
+        pwLayout->addLayout(pwRight, 1);
+        tabLayout->addWidget(m_pwGroup);
+
+        tabs->addTab(usersTab, "Users");
+        tabs->addTab(new QWidget(), "Advanced"); // Stub tab
+        layout->addWidget(tabs);
+
+        auto *bottomBtns = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply);
+        layout->addWidget(bottomBtns);
+
+        // Connections
+        connect(m_table, &QTableWidget::itemSelectionChanged, this, &UsersAndPasswordsDialog::onSelectionChanged);
+        connect(addBtn, &QPushButton::clicked, this, &UsersAndPasswordsDialog::onAddUser);
+        connect(m_removeBtn, &QPushButton::clicked, this, &UsersAndPasswordsDialog::onRemoveUser);
+        connect(m_propBtn, &QPushButton::clicked, this, &UsersAndPasswordsDialog::onProperties);
+        connect(m_setPwBtn, &QPushButton::clicked, this, &UsersAndPasswordsDialog::onSetPassword);
+        
+        connect(bottomBtns, &QDialogButtonBox::accepted, this, &QDialog::accept);
+        connect(bottomBtns, &QDialogButtonBox::rejected, this, &QDialog::reject);
+
+        refreshTable();
+    }
+
+private:
+    QTableWidget *m_table;
+    QGroupBox *m_pwGroup;
+    QLabel *m_pwLabel;
+    QPushButton *m_removeBtn;
+    QPushButton *m_propBtn;
+    QPushButton *m_setPwBtn;
+
+    void refreshTable() {
+        m_table->setRowCount(0);
+        QList<UserInfo> users = getAllUsers();
+        for (const auto& u : users) {
+            int row = m_table->rowCount();
+            m_table->insertRow(row);
+            
+            auto *userItem = new QTableWidgetItem(themeIcon({"user-identity"}), u.username);
+            userItem->setData(Qt::UserRole, u.fullname);
+            userItem->setData(Qt::UserRole + 1, u.isAdmin);
+            userItem->setFlags(userItem->flags() & ~Qt::ItemIsEditable);
+            
+            auto *groupItem = new QTableWidgetItem(u.groupString);
+            groupItem->setFlags(groupItem->flags() & ~Qt::ItemIsEditable);
+            
+            m_table->setItem(row, 0, userItem);
+            m_table->setItem(row, 1, groupItem);
+        }
+        
+        if (m_table->rowCount() > 0) {
+            m_table->selectRow(0);
+        }
+    }
+
+    void onSelectionChanged() {
+        int row = m_table->currentRow();
+        if (row >= 0) {
+            QString user = m_table->item(row, 0)->text();
+            m_pwGroup->setTitle("Password for " + user);
+            
+            // Replicate classic behavior: different prompt for current user
+            if (user == qgetenv("USER")) {
+                m_pwLabel->setText("To change your password, use the terminal or the main User Accounts panel.");
+            } else {
+                m_pwLabel->setText("To change the password for " + user + ", click Set Password.");
+            }
+
+            m_propBtn->setEnabled(true);
+            m_setPwBtn->setEnabled(true);
+            m_removeBtn->setEnabled(user != qgetenv("USER") && user != "root");
+        } else {
+            m_pwGroup->setTitle("Password");
+            m_pwLabel->setText("");
+            m_propBtn->setEnabled(false);
+            m_setPwBtn->setEnabled(false);
+            m_removeBtn->setEnabled(false);
+        }
+    }
+
+    void onAddUser() {
+        AddNewUserDialog dlg(this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refreshTable();
+        }
+    }
+
+    void onRemoveUser() {
+        int row = m_table->currentRow();
+        if (row < 0) return;
+        QString user = m_table->item(row, 0)->text();
+        
+        QProcess::execute("pkexec", {"userdel", "-r", user});
+        refreshTable();
+    }
+
+    void onProperties() {
+        int row = m_table->currentRow();
+        if (row < 0) return;
+        
+        QString user = m_table->item(row, 0)->text();
+        QString fullname = m_table->item(row, 0)->data(Qt::UserRole).toString();
+        bool isAdmin = m_table->item(row, 0)->data(Qt::UserRole + 1).toBool();
+
+        UserPropertiesDialog dlg(user, fullname, isAdmin, this);
+        if (dlg.exec() == QDialog::Accepted) {
+            refreshTable();
+        }
+    }
+
+    void onSetPassword() {
+        int row = m_table->currentRow();
+        if (row < 0) return;
+        QString user = m_table->item(row, 0)->text();
+        
+        // Spawn terminal for password execution
+        if (user == qgetenv("USER")) {
+            QProcess::startDetached("foot", {"-e", "passwd"});
+        } else {
+            QProcess::startDetached("foot", {"-e", "sudo", "passwd", user});
         }
     }
 };
@@ -339,7 +688,8 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     // --- Task 5: Manage another account ---
     auto *manageLink = new LinkLabel("Manage another account");
     QObject::connect(manageLink, &LinkLabel::clicked, this, [this]() {
-        launchDetached(this, userAccounts());
+        UsersAndPasswordsDialog dlg(this);
+        dlg.exec();
     });
     tasks->addWidget(manageLink, 0, Qt::AlignLeft);
 
@@ -369,7 +719,7 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     summary->setSpacing(2);
     summary->addWidget(Win7::label(acct.fullName, 11, "#1A3C7A"));
     summary->addWidget(Win7::label(acct.accountType));
-    summary->addWidget(Win7::label("Password protected")); // Matches classic UI hardcode[cite: 1]
+    summary->addWidget(Win7::label("Password protected")); // Matches classic UI
     summary->addStretch(1);
     card->addLayout(summary, 0);
 
