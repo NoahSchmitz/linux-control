@@ -33,7 +33,7 @@ protected:
 private:
     struct Family {
         QString name;
-        QString file;   // a representative font file, opened by kfontview
+        QString file;   // a representative font file
     };
 
     static QList<Family> gatherFamilies();

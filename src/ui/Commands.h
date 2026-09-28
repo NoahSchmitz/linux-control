@@ -159,3 +159,8 @@ inline QStringList thunarPreferences()
 {
     return { "thunar-settings" };
 }
+
+inline QStringList yadFonts()
+{
+    return { "yad", "--font" };
+}

@@ -72,7 +72,7 @@ protected:
     }
 };
 
-// Launch an external helper (a kcmshell6 module, kfontview, a settings applet…)
+// Launch an external helper (a kcmshell6 module, a settings applet…)
 // detached. If the program isn't on PATH, tell the user rather than failing
 // silently, the same courtesy MainWindow extends to its own command links.
 inline void launchDetached(QWidget *parent, const QStringList &cmd)

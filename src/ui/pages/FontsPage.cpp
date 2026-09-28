@@ -298,7 +298,7 @@ void FontsPage::openSelected()
     const QString file = m_families[m_selected].file;
     if (file.isEmpty())
         return;
-    launchDetached(this, { "kfontview", file });
+    launchDetached(this, yadFonts());
 }
 
 bool FontsPage::eventFilter(QObject *watched, QEvent *event)
