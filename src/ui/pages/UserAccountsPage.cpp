@@ -29,6 +29,7 @@
 #include <QGroupBox>
 #include <QCheckBox>
 #include <QPushButton>
+#include <QMessageBox>
 
 #include <pwd.h>
 #include <grp.h>
@@ -79,6 +80,84 @@ static QList<UserInfo> getAllUsers() {
     endpwent();
     return users;
 }
+
+// ----------------------------------------------------------------------------
+// Custom Dialog mimicking the "Set Password" window
+// ----------------------------------------------------------------------------
+class SetPasswordDialog : public QDialog {
+public:
+    SetPasswordDialog(const QString& username, QWidget* parent = nullptr)
+        : QDialog(parent), m_username(username) {
+        setWindowTitle("Set Password");
+        setMinimumWidth(320);
+
+        auto *layout = new QVBoxLayout(this);
+        layout->setSizeConstraint(QLayout::SetFixedSize);
+        layout->setContentsMargins(15, 15, 15, 15);
+        layout->setSpacing(15);
+
+        auto *formLayout = new QGridLayout;
+        formLayout->setContentsMargins(0, 0, 0, 0);
+        formLayout->setHorizontalSpacing(10);
+        formLayout->setVerticalSpacing(10);
+
+        formLayout->addWidget(new QLabel("New password:"), 0, 0);
+        m_newPw = new QLineEdit;
+        m_newPw->setEchoMode(QLineEdit::Password);
+        formLayout->addWidget(m_newPw, 0, 1);
+
+        formLayout->addWidget(new QLabel("Confirm new password:"), 1, 0);
+        m_confirmPw = new QLineEdit;
+        m_confirmPw->setEchoMode(QLineEdit::Password);
+        formLayout->addWidget(m_confirmPw, 1, 1);
+
+        layout->addLayout(formLayout);
+
+        auto *btnLayout = new QHBoxLayout;
+        btnLayout->addStretch();
+        auto *okBtn = new QPushButton("OK");
+        auto *cancelBtn = new QPushButton("Cancel");
+        btnLayout->addWidget(okBtn);
+        btnLayout->addWidget(cancelBtn);
+        layout->addLayout(btnLayout);
+
+        connect(okBtn, &QPushButton::clicked, this, &SetPasswordDialog::onAccept);
+        connect(cancelBtn, &QPushButton::clicked, this, &QDialog::reject);
+    }
+
+private:
+    QString m_username;
+    QLineEdit *m_newPw;
+    QLineEdit *m_confirmPw;
+
+    void onAccept() {
+        if (m_newPw->text() != m_confirmPw->text()) {
+            QMessageBox::warning(this, "Set Password", "The passwords do not match. Please re-type the new password in both boxes.");
+            return;
+        }
+
+        QProcess proc;
+        proc.start("pkexec", {"chpasswd"});
+        if (proc.waitForStarted(-1)) {
+            // chpasswd takes piped input formatted as "username:password"
+            QByteArray input = QString("%1:%2\n").arg(m_username, m_newPw->text()).toUtf8();
+            proc.write(input);
+            proc.closeWriteChannel(); // Sends EOF so chpasswd begins execution
+            proc.waitForFinished(-1);
+
+            if (proc.exitStatus() == QProcess::NormalExit && proc.exitCode() == 0) {
+                QMessageBox::information(this, "Set Password", "The password has been successfully changed.");
+                accept();
+            } else {
+                QString err = proc.readAllStandardError().trimmed();
+                if (err.isEmpty()) err = "Authentication failed or the action was canceled.";
+                QMessageBox::critical(this, "Set Password", "Failed to change password.\n\n" + err);
+            }
+        } else {
+            QMessageBox::critical(this, "Set Password", "Could not execute the password change utility.");
+        }
+    }
+};
 
 // ----------------------------------------------------------------------------
 // Custom Dialog mimicking the classic Windows User Properties
@@ -217,8 +296,6 @@ class AddNewUserDialog : public QDialog {
 public:
     AddNewUserDialog(QWidget* parent = nullptr) : QDialog(parent) {
         setWindowTitle("Add New User");
-        // setFixedSize(480, 320);
-        
 
         auto *mainLayout = new QHBoxLayout(this);
         mainLayout->setContentsMargins(0, 0, 0, 0);
@@ -229,7 +306,7 @@ public:
         // Left Wizard Banner
         auto *leftBanner = new QFrame(this);
         leftBanner->setFixedWidth(150);
-        leftBanner->setStyleSheet("background-color: #000080;"); // Classic dark blue
+        leftBanner->setStyleSheet("background-color: #000080;"); 
         
         auto *bannerLayout = new QVBoxLayout(leftBanner);
         auto *iconLabel = new QLabel;
@@ -242,7 +319,6 @@ public:
 
         // Right Content Area
         auto *rightPanel = new QWidget(this);
-        // rightPanel->setStyleSheet("background-color: #ECE9D8;"); // Classic WinXP dialog color
         auto *rightLayout = new QVBoxLayout(rightPanel);
         rightLayout->setContentsMargins(20, 20, 20, 15);
 
@@ -299,11 +375,19 @@ private:
         if (user.isEmpty()) return;
 
         // Create the user
-        QProcess::execute("pkexec", {"useradd", "-m", "-c", full, user});
-        
-        // Spawn a terminal for the user to set the new account's password securely
-        QProcess::startDetached("foot", {"-e", "sudo", "passwd", user});
-        accept();
+        QProcess proc;
+        proc.start("pkexec", {"useradd", "-m", "-c", full, user});
+        proc.waitForFinished(-1);
+
+        if (proc.exitCode() == 0) {
+            // Prompt to set the initial password immediately
+            SetPasswordDialog pwDlg(user, this);
+            pwDlg.exec();
+            accept();
+        } else {
+            QString err = proc.readAllStandardError().trimmed();
+            QMessageBox::critical(this, "Add New User", "Failed to create user.\n\n" + err);
+        }
     }
 };
 
@@ -445,14 +529,7 @@ private:
         if (row >= 0) {
             QString user = m_table->item(row, 0)->text();
             m_pwGroup->setTitle("Password for " + user);
-            
-            // Replicate classic behavior: different prompt for current user
-            if (user == qgetenv("USER")) {
-                m_pwLabel->setText("To change your password, use the terminal or the main User Accounts panel.");
-            } else {
-                m_pwLabel->setText("To change the password for " + user + ", click Set Password.");
-            }
-
+            m_pwLabel->setText("To change the password for " + user + ", click Set Password.");
             m_propBtn->setEnabled(true);
             m_setPwBtn->setEnabled(true);
             m_removeBtn->setEnabled(user != qgetenv("USER") && user != "root");
@@ -500,12 +577,8 @@ private:
         if (row < 0) return;
         QString user = m_table->item(row, 0)->text();
         
-        // Spawn terminal for password execution
-        if (user == qgetenv("USER")) {
-            QProcess::startDetached("foot", {"-e", "passwd"});
-        } else {
-            QProcess::startDetached("foot", {"-e", "sudo", "passwd", user});
-        }
+        SetPasswordDialog pwDlg(user, this);
+        pwDlg.exec();
     }
 };
 
@@ -647,9 +720,9 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
 
     // --- Task 1: Change Password ---
     auto *pwdLink = new LinkLabel("Change your password");
-    QObject::connect(pwdLink, &LinkLabel::clicked, this, []() {
-        // Spawns user's Wayland terminal to run standard Linux password change
-        QProcess::startDetached("foot", {"-e", "passwd"});
+    QObject::connect(pwdLink, &LinkLabel::clicked, this, [this, acct]() {
+        SetPasswordDialog pwDlg(acct.userName, this);
+        pwDlg.exec();
     });
     tasks->addWidget(pwdLink, 0, Qt::AlignLeft);
 
