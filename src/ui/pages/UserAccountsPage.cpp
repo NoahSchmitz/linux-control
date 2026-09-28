@@ -8,19 +8,161 @@
 #include <QLabel>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QGridLayout>
 #include <QFrame>
 #include <QFont>
 #include <QFile>
 #include <QPixmap>
 #include <QPainter>
 #include <QPainterPath>
+#include <QDialog>
+#include <QTabWidget>
+#include <QLineEdit>
+#include <QRadioButton>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QProcess>
+#include <QFileDialog>
+#include <QDir>
 
 #include <pwd.h>
 #include <grp.h>
 #include <unistd.h>
 #include <vector>
 
+// ----------------------------------------------------------------------------
+// Custom Dialog mimicking the classic Windows User Properties
+// ----------------------------------------------------------------------------
+class UserPropertiesDialog : public QDialog {
+public:
+    UserPropertiesDialog(const QString& username, const QString& fullname, bool isAdmin, QWidget* parent = nullptr)
+        : QDialog(parent), m_username(username), m_initialIsAdmin(isAdmin)
+    {
+        setWindowTitle(username + " Properties"); // Matches legacy title format
+        
+        // Remove the 380px hardcode. Set a minimum width, then let Qt calculate the rest.
+        setMinimumWidth(460);
+
+        auto *layout = new QVBoxLayout(this);
+        // This constraint snaps the window strictly to the exact size of its contents, 
+        // mimicking an unresizable Windows dialog without risking font clipping.
+        layout->setSizeConstraint(QLayout::SetFixedSize);
+
+        m_tabs = new QTabWidget(this);
+
+        // --- General Tab ---
+        auto *generalTab = new QWidget;
+        auto *generalLayout = new QGridLayout(generalTab);
+        generalLayout->setContentsMargins(15, 15, 15, 15);
+        generalLayout->setVerticalSpacing(10);
+        
+        generalLayout->addWidget(new QLabel("User name:"), 0, 0);
+        auto *userEdit = new QLineEdit(username);
+        userEdit->setReadOnly(true); 
+        userEdit->setStyleSheet("background-color: #EBEBE4; color: #333;");
+        generalLayout->addWidget(userEdit, 0, 1);
+
+        generalLayout->addWidget(new QLabel("Full name:"), 1, 0);
+        m_fullNameEdit = new QLineEdit(fullname);
+        generalLayout->addWidget(m_fullNameEdit, 1, 1);
+
+        generalLayout->addWidget(new QLabel("Description:"), 2, 0);
+        generalLayout->addWidget(new QLineEdit(), 2, 1); // Left inert as Linux doesn't natively use this
+        generalLayout->setRowStretch(3, 1);
+        m_tabs->addTab(generalTab, "General");
+
+        // --- Group Membership Tab ---
+        auto *groupTab = new QWidget;
+        auto *groupLayout = new QVBoxLayout(groupTab);
+        groupLayout->setContentsMargins(15, 15, 15, 15);
+        
+        groupLayout->addWidget(new QLabel("What level of access do you want to grant this user?"));
+        groupLayout->addSpacing(10);
+
+        m_stdRadio = new QRadioButton("Standard user");
+        groupLayout->addWidget(m_stdRadio);
+        
+        // Enable word wrap and remove hardcoded mid-sentence newlines so text flows fluidly
+        auto *stdDesc = new QLabel("(Power Users Group)\nUsers can modify the computer and install programs, but cannot read files that belong to other users.");
+        stdDesc->setWordWrap(true);
+        stdDesc->setContentsMargins(20, 0, 0, 10);
+        groupLayout->addWidget(stdDesc);
+
+        auto *restrictedRadio = new QRadioButton("Restricted user");
+        groupLayout->addWidget(restrictedRadio);
+        
+        auto *restrictedDesc = new QLabel("(Users Group)\nUsers can operate the computer and save documents, but cannot install programs or make potentially damaging changes to the system files and settings.");
+        restrictedDesc->setWordWrap(true);
+        restrictedDesc->setContentsMargins(20, 0, 0, 10);
+        groupLayout->addWidget(restrictedDesc);
+
+        m_adminRadio = new QRadioButton("Other:");
+        auto *otherH = new QHBoxLayout;
+        otherH->addWidget(m_adminRadio);
+        m_otherCombo = new QComboBox;
+        m_otherCombo->addItem("Administrators");
+        otherH->addWidget(m_otherCombo);
+        otherH->addStretch();
+        groupLayout->addLayout(otherH);
+
+        auto *adminDesc = new QLabel("Administrators have complete and unrestricted access to the computer/domain.");
+        adminDesc->setWordWrap(true);
+        adminDesc->setContentsMargins(20, 0, 0, 10);
+        groupLayout->addWidget(adminDesc);
+        
+        groupLayout->addStretch();
+        m_tabs->addTab(groupTab, "Group Membership");
+
+        // Set initial state based on wheel group
+        if (isAdmin) {
+            m_adminRadio->setChecked(true);
+        } else {
+            m_stdRadio->setChecked(true);
+        }
+
+        layout->addWidget(m_tabs);
+
+        auto *btnBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel | QDialogButtonBox::Apply);
+        layout->addWidget(btnBox);
+
+        connect(btnBox, &QDialogButtonBox::accepted, this, [this]() { applyChanges(); accept(); });
+        connect(btnBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        connect(btnBox->button(QDialogButtonBox::Apply), &QPushButton::clicked, this, &UserPropertiesDialog::applyChanges);
+    }
+
+    void showTab(int index) { m_tabs->setCurrentIndex(index); }
+
+private:
+    QString m_username;
+    bool m_initialIsAdmin;
+    QTabWidget *m_tabs;
+    QLineEdit *m_fullNameEdit;
+    QRadioButton *m_stdRadio;
+    QRadioButton *m_adminRadio;
+    QComboBox *m_otherCombo;
+
+    void applyChanges() {
+        // Apply Full Name change via polkit + usermod
+        if (m_fullNameEdit->text() != m_username) {
+            QProcess::execute("pkexec", {"usermod", "-c", m_fullNameEdit->text(), m_username});
+        }
+        
+        // Apply Group Membership (Wheel) via polkit
+        bool wantAdmin = m_adminRadio->isChecked();
+        if (wantAdmin != m_initialIsAdmin) {
+            if (wantAdmin) {
+                QProcess::execute("pkexec", {"usermod", "-aG", "wheel", m_username});
+            } else {
+                QProcess::execute("pkexec", {"gpasswd", "-d", m_username, "wheel"});
+            }
+            m_initialIsAdmin = wantAdmin;
+        }
+    }
+};
+
+// ----------------------------------------------------------------------------
 // Data gathering
+// ----------------------------------------------------------------------------
 UserAccountsPage::Account UserAccountsPage::gatherAccount()
 {
     Account a;
@@ -77,7 +219,9 @@ UserAccountsPage::Account UserAccountsPage::gatherAccount()
     return a;
 }
 
+// ----------------------------------------------------------------------------
 // Sidebar
+// ----------------------------------------------------------------------------
 QList<SidebarLink> UserAccountsPage::sidebarLinks()
 {
     return {
@@ -94,8 +238,9 @@ QList<SidebarLink> UserAccountsPage::sidebarSeeAlso()
     };
 }
 
-// Render the avatar as a rounded, framed thumbnail; fall back to a theme icon
-// when the user has no picture of their own.
+// ----------------------------------------------------------------------------
+// Render the avatar
+// ----------------------------------------------------------------------------
 static QPixmap avatarPixmap(const QString &path, int size)
 {
     QPixmap src;
@@ -125,7 +270,9 @@ static QPixmap avatarPixmap(const QString &path, int size)
     return out;
 }
 
-// Page
+// ----------------------------------------------------------------------------
+// Page Construction
+// ----------------------------------------------------------------------------
 UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     : QWidget(parent)
 {
@@ -149,21 +296,59 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     tasks->setContentsMargins(0, 0, 0, 0);
     tasks->setSpacing(12);
 
-    // All of these edits are handled by system user manager
-    auto addTask = [&](const QString &text) {
-        auto *link = new LinkLabel(text);
-        QObject::connect(link, &LinkLabel::clicked, this, [this]() {
-            launchDetached(this, userAccounts());
-        });
-        tasks->addWidget(link, 0, Qt::AlignLeft);
-    };
+    // --- Task 1: Change Password ---
+    auto *pwdLink = new LinkLabel("Change your password");
+    QObject::connect(pwdLink, &LinkLabel::clicked, this, []() {
+        // Spawns user's Wayland terminal to run standard Linux password change
+        QProcess::startDetached("foot", {"-e", "passwd"});
+    });
+    tasks->addWidget(pwdLink, 0, Qt::AlignLeft);
 
-    addTask("Change your password");
-    addTask("Change your picture");
-    addTask("Change your account name");
-    addTask("Change your account type");
-    addTask("Manage another account");
-    addTask("Change User Account Control settings");
+    // --- Task 2: Change Picture ---
+    auto *picLink = new LinkLabel("Change your picture");
+    QObject::connect(picLink, &LinkLabel::clicked, this, [this]() {
+        QString file = QFileDialog::getOpenFileName(this, "Choose a picture", QDir::homePath(), "Images (*.png *.jpg *.jpeg)");
+        if (!file.isEmpty()) {
+            // Write to legacy .face file standard used by display managers
+            QFile::remove(QDir::homePath() + "/.face");
+            QFile::copy(file, QDir::homePath() + "/.face");
+            QFile::remove(QDir::homePath() + "/.face.icon");
+            QFile::copy(file, QDir::homePath() + "/.face.icon");
+        }
+    });
+    tasks->addWidget(picLink, 0, Qt::AlignLeft);
+
+    // --- Task 3: Change Account Name ---
+    auto *nameLink = new LinkLabel("Change your account name");
+    QObject::connect(nameLink, &LinkLabel::clicked, this, [this, acct]() {
+        UserPropertiesDialog dlg(acct.userName, acct.fullName, acct.accountType == "Administrator", this);
+        dlg.showTab(0); // Show General Tab
+        dlg.exec();
+    });
+    tasks->addWidget(nameLink, 0, Qt::AlignLeft);
+
+    // --- Task 4: Change Account Type ---
+    auto *typeLink = new LinkLabel("Change your account type");
+    QObject::connect(typeLink, &LinkLabel::clicked, this, [this, acct]() {
+        UserPropertiesDialog dlg(acct.userName, acct.fullName, acct.accountType == "Administrator", this);
+        dlg.showTab(1); // Show Group Membership Tab
+        dlg.exec();
+    });
+    tasks->addWidget(typeLink, 0, Qt::AlignLeft);
+
+    // --- Task 5: Manage another account ---
+    auto *manageLink = new LinkLabel("Manage another account");
+    QObject::connect(manageLink, &LinkLabel::clicked, this, [this]() {
+        launchDetached(this, userAccounts());
+    });
+    tasks->addWidget(manageLink, 0, Qt::AlignLeft);
+
+    // --- Task 6: Change UAC ---
+    auto *uacLink = new LinkLabel("Change User Account Control settings");
+    QObject::connect(uacLink, &LinkLabel::clicked, this, [this]() {
+        launchDetached(this, userAccounts());
+    });
+    tasks->addWidget(uacLink, 0, Qt::AlignLeft);
 
     tasks->addStretch(1);
     body->addLayout(tasks, 0);
@@ -184,7 +369,7 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     summary->setSpacing(2);
     summary->addWidget(Win7::label(acct.fullName, 11, "#1A3C7A"));
     summary->addWidget(Win7::label(acct.accountType));
-    summary->addWidget(Win7::label("Password protected"));
+    summary->addWidget(Win7::label("Password protected")); // Matches classic UI hardcode[cite: 1]
     summary->addStretch(1);
     card->addLayout(summary, 0);
 
