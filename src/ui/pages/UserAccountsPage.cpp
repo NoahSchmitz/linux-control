@@ -30,9 +30,11 @@
 #include <QCheckBox>
 #include <QPushButton>
 #include <QMessageBox>
+#include <QRegularExpression>
 
 #include <pwd.h>
 #include <grp.h>
+#include <shadow.h>
 #include <unistd.h>
 #include <vector>
 
@@ -339,8 +341,8 @@ public:
         // formLayout->addWidget(new QLabel("Description:"), 2, 0);
         // m_descEdit = new QLineEdit;
         // formLayout->addWidget(m_descEdit, 2, 1);
-        // rightLayout->addLayout(formLayout);
 
+        rightLayout->addLayout(formLayout);
         rightLayout->addSpacing(20);
         rightLayout->addWidget(new QLabel("To continue, click Next."));
         rightLayout->addStretch();
@@ -648,7 +650,10 @@ UserAccountsPage::Account UserAccountsPage::gatherAccount()
 QList<SidebarLink> UserAccountsPage::sidebarLinks()
 {
     return {
-        Nav::command("Manage another account", userAccounts()),
+        Nav::action("Manage another account", []() {
+            UsersAndPasswordsDialog dlg(nullptr);
+            dlg.exec();
+        }),
         Nav::command("Change User Account Control settings", userAccounts()),
     };
 }
@@ -793,7 +798,36 @@ UserAccountsPage::UserAccountsPage(QScrollArea *sidebar, QWidget *parent)
     summary->setSpacing(2);
     summary->addWidget(Win7::label(acct.fullName, 11, "#1A3C7A"));
     summary->addWidget(Win7::label(acct.accountType));
-    summary->addWidget(Win7::label("Password protected")); // Matches classic UI
+    
+    // --- Dynamic Password Hash Check ---
+    QString pwdStatusStr = "Password protected";
+    struct spwd *sp = getspnam(acct.userName.toLocal8Bit().constData());
+    
+    if (sp) {
+        QString hash = QString::fromLocal8Bit(sp->sp_pwdp);
+        if (hash.isEmpty()) {
+            pwdStatusStr = "No password";
+        } else if (hash.startsWith("!") || hash.startsWith("*")) {
+            pwdStatusStr = "Account locked";
+        }
+    } else {
+        // Fallback for standard users who lack permission to read /etc/shadow directly
+        QProcess proc;
+        proc.start("passwd", {"-S", acct.userName});
+        if (proc.waitForFinished(1000) && proc.exitStatus() == QProcess::NormalExit) {
+            QStringList parts = QString::fromLocal8Bit(proc.readAllStandardOutput()).split(QRegularExpression("\\s+"));
+            if (parts.size() >= 2) {
+                QString status = parts[1];
+                if (status == "NP") {
+                    pwdStatusStr = "No password";
+                } else if (status == "L" || status == "LK") {
+                    pwdStatusStr = "Account locked";
+                }
+            }
+        }
+    }
+
+    summary->addWidget(Win7::label(pwdStatusStr));
     summary->addStretch(1);
     card->addLayout(summary, 0);
 
